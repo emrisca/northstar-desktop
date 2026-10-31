@@ -10,7 +10,10 @@
  */
 (() => {
   const CESIUM_VERSION = '1.146.0';
-  const CESIUM_BASE = `https://cdn.jsdelivr.net/npm/cesium@${CESIUM_VERSION}/Build/Cesium/`;
+  // Loaded from this folder, not a CDN, so the globe works with no connection.
+  // The version stays here because the app reports it and Cesium warns when a
+  // build's assets do not match the library it loaded.
+  const CESIUM_BASE = 'vendor/cesium/Build/Cesium/';
   const CESIUM_SCRIPT = `${CESIUM_BASE}Cesium.js`;
   const CESIUM_STYLES = `${CESIUM_BASE}Widgets/widgets.css`;
 

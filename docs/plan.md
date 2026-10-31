@@ -2,7 +2,7 @@
 
 Northstar runs in a browser today, served by a Python script. This plan turns it into a desktop app without rewriting the interface, and splits the work so each batch can be built, tested and pushed on its own.
 
-State: batch 0 done, batch 1 next.
+State: batches 0 and 1 done, batch 2 next.
 
 ## How a batch finishes
 
@@ -24,13 +24,22 @@ Check. `npm run dev` compiles the shell and opens the window on the interface; t
 
 ## Batch 1. The map, offline
 
-Goal. Every map behaviour works from local files, with no CDN request and no service worker.
+Delivered.
 
-- Vendor Leaflet, MapLibre, the MapLibre Leaflet bridge, Turf, RBush, GeographicLib and proj4 into `src/vendor`, and load the Cesium script and its assets from disk when the globe is chosen.
-- Write the content security policy for the tile hosts, imagery servers, terrain services and parcel services the basemap picker and overlays already use.
-- Remove the last traces of the service worker and the cache-busting query strings that only mattered to it.
+- Seven libraries, the Cesium build and the two font families moved into `src/vendor`, loaded by relative path. Leaflet 1.9.4, MapLibre 3.6.2 with its Leaflet bridge 0.0.20, Turf 7.2.0, RBush 3.0.1, geographiclib-geodesic 2.2.0 and proj4 2.15.0, all at the versions the page already pinned. [vendor/README.md](../src/vendor/README.md) records each version, source and a SHA-256 over the vendored bytes.
+- Cesium 1.146.0 loads from `src/vendor/cesium` when the globe is chosen. The published build carries `index.js` and `index.cjs` for bundlers; dropping those two saved 9.6 MB and nothing else was trimmed, because the workers and assets are loaded by name at runtime.
+- The content security policy replaced `null` in `tauri.conf.json`. It names 34 hosts across basemaps, imagery, terrain, overlays and the assessor parcel services, and allows inline styles, blob and data images, blob workers, and for scripts only Cesium's needs: `'unsafe-eval'`, `'wasm-unsafe-eval'` and `blob:`. No remote origin appears in `script-src`, which is what keeps a CDN payload out.
+- The service worker registration went with `sw.js` in batch 0, and the cache-busting query strings stay because they cost nothing.
 
-Check. All three engines render. A covered state loads parcel lines. The historical year filter changes labels. The blank grid stays editable with networking disabled. No request leaves for a CDN, and a request log proves it.
+Check. All three engines render, and so does the globe from disk. A California viewport loads assessor parcel lines from the state service. The historical basemap fetches its style and shows the year slider. The blank grid renders and stays editable.
+
+Measured on 30 October 2026, page served over HTTP with the policy sent as a header so it was enforced during the run:
+
+- 109 resource requests since navigation, none to `unpkg`, `jsdelivr`, `cdnjs`, `fonts.googleapis` or `fonts.gstatic`. The only hosts were the five tile and style services, plus `127.0.0.1` for the vendored files, which include two font files and every Cesium asset.
+- The globe reported Cesium 1.146.0 active with its canvas present, and the console logged nothing at all during that load.
+- The Tauri window renders the street basemap, the toolbar and the status bar with the policy in force.
+
+Two notes for later batches. Cesium and MapLibre both build workers from blob URLs and Cesium compiles WebAssembly, which is why `script-src` is broader than `'self'`; isolating the globe would be the way to narrow it again. And one OpenHistoricalMap tile returned 404 during the run, which is the upstream tile service, not a local path.
 
 ## Batch 2. Projects as files
 
@@ -82,7 +91,6 @@ Check. Double-clicking a project opens it in the running window, every shortcut 
 Goal. A field machine with no connection is a first-class case.
 
 - A tile cache on disk with a size cap and an eviction rule, written by the shell rather than the webview.
-- Fonts on disk.
 - A measured cold-start budget and an index rebuild budget on a ten thousand waypoint fixture.
 
 Check. The app starts with networking off, cached tiles and the blank grid both work, cold start is under two seconds, and dragging stays responsive on the fixture.
