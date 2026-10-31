@@ -20,7 +20,9 @@ In the desktop build Tauri serves the files, so job one disappears. Jobs two to 
 | `POST /api/rtklib/convert` | `rtklib_convert` | 4 |
 | `POST /api/rtklib/run` | `rtklib_run` | 4 |
 
-Batches 1 to 3 replaced the first five rows: `src/native.js` answers `/api/preflight` and the three `/api/noaa/...` paths from the commands and reports a failed command as 502 with the Python proxy's body. The five RTKLIB rows still answer 503 with a body naming the command and the batch that replaces them, and each entry is deleted as its command lands.
+All nine rows are answered now. `src/native.js` reads the query string and the body the way `serve.py` did and sends the same arguments to the command; a command that refuses comes back with the status and the sentence the proxy used, so 409 (no RTKLIB), 413 (over a limit), 415 (a closed receiver format), 422 (the engine refused the data) and 504 (a timeout) still mean what the interface expects. Nothing answers 503 any more.
+
+The one thing the commands do not copy is the body encoding. A file crosses the IPC boundary as base64, because a 40 MB array of numbers would be serialised as a string four times that size; the cap is checked on the encoded length before anything is decoded.
 
 The NOAA work is worth stating plainly, because it is the reason the backend exists at all. NOAA's services do not send browser-readable cross-origin headers, so the web build asked its own server to make the requests. A Tauri command has no origin and therefore no such limit, so batch 3 keeps the same three fixed URLs and drops the proxy hop. The consequence is that the request no longer leaves from a browser at all, which matters for how NOAA sees the traffic: the user agent is still `Northstar-Field-CAD/1.0 (local GNSS workflow)`, and each request comes from the machine itself.
 
@@ -78,7 +80,7 @@ File paths. Everything in `src/` is loaded with a relative URL, so it works from
 
 Proved. The window opens on the moved interface, the shell compiles, and the five places that used to name the launcher or `serve.py` now name the desktop backend.
 
-Not proved. Nothing about the endpoint backend, because none of it exists yet. The nine endpoints answer 503.
+Not proved. Nothing about the endpoint backend, because none of it existed at that point: the nine endpoints answered 503 until batches 3 and 4 filled them in.
 
 Batch 2 added the project store, which is proved by the twelve tests in `src-tauri/src/store.rs` and by launching the shell: a project file with `lastProject` set opens in the window after a relaunch. The native open and save dialogs and an edit made with the mouse in the packaged app were not exercised.
 

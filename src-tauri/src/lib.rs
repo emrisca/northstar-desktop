@@ -6,14 +6,21 @@
 //! are handed to it in an initialisation script, so the first paint is already
 //! the saved project.
 //!
-//! The commands here are the file half of the backend. The nine endpoints that
-//! replace `serve.py` arrive in batches 3 and 4 and are listed in
-//! `src/native.js`.
+//! Batch 3 added the NOAA lookups and the readiness report; batch 4 adds
+//! RTKLIB: the tools ship inside the app, and conversion, correction and the
+//! recovery installer all answer from Rust. That is the last of the nine
+//! endpoints `src/native.js` used to answer with a 503.
 
+mod convert;
+mod correct;
+mod failure;
+mod install;
 mod noaa;
 mod preflight;
+mod rtklib;
 mod store;
 
+pub use failure::Failure;
 use serde::Serialize;
 use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
@@ -29,9 +36,11 @@ struct Open {
 
 struct Files {
     store: Store,
-    /// Where a bundled RTKLIB build lives. Resolved once, when the window is
-    /// built, so no command has to ask the app for it.
-    tools: PathBuf,
+    /// The RTKLIB tools this build ships, resolved once when the window is
+    /// built. `None` when the bundle carries none, which is the case the
+    /// recovery installer exists for.
+    bundle: Option<PathBuf>,
+    installer: install::Installer,
     open: Mutex<Open>,
 }
 
@@ -52,6 +61,31 @@ fn app_data(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     app.path()
         .app_data_dir()
         .map_err(|error| format!("the app data folder is unavailable: {error}"))
+}
+
+/// Where `scripts/bundle-rtklib.sh` put this build's tools, one folder per
+/// platform because the binaries are native. A packaged app keeps them under
+/// its resources; `tauri dev` copies the same tree beside the binary, and a
+/// test run has neither, so the source tree is the last place to look.
+fn bundle_path(app: &tauri::AppHandle) -> Option<PathBuf> {
+    let platform = preflight::platform_key();
+    let mut roots: Vec<PathBuf> = Vec::new();
+    if let Ok(resources) = app.path().resource_dir() {
+        roots.push(resources.join(rtklib::BUNDLE_FOLDER).join(platform));
+        roots.push(
+            resources
+                .join("resources")
+                .join(rtklib::BUNDLE_FOLDER)
+                .join(platform),
+        );
+    }
+    roots.push(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("resources")
+            .join(rtklib::BUNDLE_FOLDER)
+            .join(platform),
+    );
+    roots.into_iter().find(|path| path.is_dir())
 }
 
 /// The document the interface starts with: the settings file, the project it
@@ -264,12 +298,90 @@ fn settings_save(app: tauri::State<Files>, document: Value) -> Result<Value, Str
 #[tauri::command]
 async fn preflight(app: tauri::State<'_, Files>, noaa: Option<bool>) -> Result<Value, String> {
     let data = app.store.root().to_path_buf();
-    let tools = app.tools.clone();
+    let bundle = app.bundle.clone();
     tauri::async_runtime::spawn_blocking(move || {
-        preflight::system_report(&tools, &data, noaa.unwrap_or(true))
+        preflight::system_report(&data, bundle.as_deref(), noaa.unwrap_or(true))
     })
     .await
     .map_err(|error| error.to_string())
+}
+
+/* ------------------------------------------------------------------ RTKLIB */
+
+/// What the installer panel shows before anything is downloaded. It probes the
+/// bundled tools and the build toolchain, so it runs off the command thread.
+#[tauri::command]
+async fn rtklib_install_info(app: tauri::State<'_, Files>) -> Result<Value, String> {
+    let data = app.store.root().to_path_buf();
+    let bundle = app.bundle.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        install::install_info(&data, bundle.as_deref())
+    })
+    .await
+    .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn rtklib_install_status(app: tauri::State<Files>) -> Value {
+    app.installer.status()
+}
+
+#[tauri::command]
+fn rtklib_install(app: tauri::State<Files>, confirm: Option<bool>) -> Result<Value, Failure> {
+    if confirm != Some(true) {
+        return Err(Failure::bad(
+            "This action requires explicit confirmation.",
+        ));
+    }
+    app.installer
+        .start(app.store.root(), app.bundle.as_deref())
+}
+
+/// One raw log, sent as base64 because the bytes have to travel as text
+/// through the IPC boundary. The size cap is checked before it is decoded.
+#[tauri::command]
+async fn rtklib_convert(
+    app: tauri::State<'_, Files>,
+    name: String,
+    format: Option<String>,
+    mtime: Option<f64>,
+    base64: String,
+) -> Result<Value, Failure> {
+    let data = app.store.root().to_path_buf();
+    let bundle = app.bundle.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let bytes = rtklib::decode(&base64)?;
+        convert::convert(
+            &data,
+            bundle.as_deref(),
+            &name,
+            &bytes,
+            &format.unwrap_or_default(),
+            mtime,
+        )
+    })
+    .await
+    .map_err(|error| Failure::new(500, error.to_string()))?
+}
+
+/// The job the interface already checked, exactly as it built it.
+#[tauri::command]
+async fn rtklib_run(
+    app: tauri::State<'_, Files>,
+    payload: Value,
+) -> Result<Value, Failure> {
+    if payload.get("confirm").and_then(Value::as_bool) != Some(true) {
+        return Err(Failure::bad(
+            "This action requires explicit confirmation.",
+        ));
+    }
+    let data = app.store.root().to_path_buf();
+    let bundle = app.bundle.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        correct::run(&data, bundle.as_deref(), &payload)
+    })
+    .await
+    .map_err(|error| Failure::new(500, error.to_string()))?
 }
 
 #[tauri::command]
@@ -341,6 +453,12 @@ pub fn run() {
                 .initialization_script(&script)
                 .build()?;
 
+            // A launch from a terminal or the file manager leaves the new
+            // window behind the active app: the process is frontmost, but the
+            // window is not key, so the first clicks only activate it and the
+            // interface looks frozen for a moment. Ask for focus as it opens.
+            let _ = window.set_focus();
+
             // A project dragged onto the window opens in this window instead
             // of starting a second copy on the same files.
             let drop_window = window.clone();
@@ -355,13 +473,11 @@ pub fn run() {
                 }
             });
 
-            let tools = app
-                .path()
-                .resource_dir()
-                .unwrap_or_else(|_| store.root().to_path_buf());
+            let bundle = bundle_path(app.handle());
             app.manage(Files {
                 store,
-                tools,
+                bundle,
+                installer: install::Installer::default(),
                 open: Mutex::new(Open { path: None }),
             });
             Ok(())
@@ -381,7 +497,12 @@ pub fn run() {
             preflight,
             noaa_nearby,
             noaa_station,
-            noaa_base
+            noaa_base,
+            rtklib_install_info,
+            rtklib_install_status,
+            rtklib_install,
+            rtklib_convert,
+            rtklib_run
         ])
         .run(tauri::generate_context!())
         .expect("the Northstar window failed to start");
@@ -407,11 +528,20 @@ mod tests {
         let app = mock_builder()
             .manage(Files {
                 store,
-                tools: std::env::temp_dir(),
+                bundle: None,
+                installer: install::Installer::default(),
                 open: Mutex::new(Open { path: None }),
             })
             .invoke_handler(tauri::generate_handler![
-                preflight, noaa_nearby, noaa_station, noaa_base
+                preflight,
+                noaa_nearby,
+                noaa_station,
+                noaa_base,
+                rtklib_install_info,
+                rtklib_install_status,
+                rtklib_install,
+                rtklib_convert,
+                rtklib_run
             ])
             .build(mock_context(noop_assets()))
             .unwrap();
@@ -439,6 +569,24 @@ mod tests {
         )
         .map(|body| body.deserialize::<Value>().unwrap())
         .map_err(|error| error)
+    }
+
+    #[test]
+    fn the_bundle_this_checkout_ships_carries_both_tools() {
+        let bundle = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("resources")
+            .join(rtklib::BUNDLE_FOLDER)
+            .join(preflight::platform_key());
+        if !bundle.is_dir() {
+            // A platform whose bundle has not been produced yet; that is the
+            // case the recovery installer exists for.
+            return;
+        }
+        let engine = rtklib::discover(&std::env::temp_dir(), Some(&bundle));
+        assert_eq!(engine.source, "bundle", "{engine:?}");
+        assert!(engine.rnx2rtkp.is_some(), "the correction engine is bundled");
+        assert!(engine.convbin.is_some(), "the converter is bundled");
+        assert_eq!(engine.version, rtklib::VERSION);
     }
 
     #[test]
@@ -485,5 +633,44 @@ mod tests {
             error.as_str().unwrap(),
             "Interval must be 1, 5, 15 or 30 seconds."
         );
+    }
+
+    #[test]
+    fn the_rtklib_commands_take_the_argument_names_the_bridge_sends() {
+        let window = shell("rtklib");
+
+        // No job has run in this window yet, and the panel expects null.
+        let status = call(&window, "rtklib_install_status", json!({})).unwrap();
+        assert_eq!(status["ok"], json!(true));
+        assert_eq!(status["job"], json!(null));
+
+        // An install without the confirmation the panel sends stops before any
+        // request leaves the machine.
+        let error = call(&window, "rtklib_install", json!({ "confirm": false })).unwrap_err();
+        assert_eq!(
+            error["message"].as_str().unwrap(),
+            "This action requires explicit confirmation."
+        );
+        assert_eq!(error["status"], json!(400));
+
+        // The bytes arrive as base64 under the name the bridge uses.
+        let error = call(
+            &window,
+            "rtklib_convert",
+            json!({ "name": "rover.ubx", "format": "ubx", "base64": "" }),
+        )
+        .unwrap_err();
+        assert_eq!(error["message"].as_str().unwrap(), "The file is empty.");
+
+        let error = call(&window, "rtklib_convert", json!({ "name": "rover.ubx", "base64": "!!!" }))
+            .unwrap_err();
+        assert_eq!(
+            error["message"].as_str().unwrap(),
+            "The file did not arrive completely."
+        );
+
+        let error = call(&window, "rtklib_run", json!({ "payload": { "confirm": true } }))
+            .unwrap_err();
+        assert_eq!(error["message"].as_str().unwrap(), "The rover file is missing.");
     }
 }

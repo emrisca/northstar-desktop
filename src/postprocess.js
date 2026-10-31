@@ -2022,6 +2022,9 @@
           : (error && error.message ? error.message : 'The local correction failed.')
             + (error && /no average of base station position|station pos computation/i.test(error.message || '')
               ? ' RTKLIB could not read the navigation data. Remove your navigation file in step 2 and run again with the base station navigation.'
+              : '')
+            + (error && /no solution epochs/i.test(error.message || '') && state.rover && !state.rover.hasL2 && state.options.frequency !== 'l1'
+              ? ' This rover has no L2 observations, so the dual-frequency job had nothing to solve. Choose L1 only in step 3 and run again.'
               : ''),
         elapsedMs: 0,
         engine: state.engine.version,
@@ -2514,6 +2517,10 @@
 
   function loadRoverObservation(parsed) {
     state.rover = parsed;
+    // A single-frequency receiver cannot be solved at the dual-frequency
+    // default: rnx2rtkp writes a .pos with no solution rows at all. Start the
+    // job on the choice that can work for this file; step 3 can still change it.
+    state.options.frequency = parsed.hasL2 ? 'l1+l2' : 'l1';
     state.roverError = '';
     state.stations = [];
     state.baseStation = null;

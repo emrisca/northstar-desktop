@@ -106,7 +106,9 @@ Every behaviour in the web build, grouped by where the person meets it. The file
 
 ## 12. RTKLIB
 
-- Opt-in install of RTKLIB 2.4.3 b34 from the official release, with SHA-256 verification and a stated method (official Windows binaries, or a source build with `make` and a C compiler). `postprocess.js`, `rtklib_install`
+- RTKLIB 2.4.3 b34 ships inside the build, one folder per platform, with the BSD licence and a `BUNDLED.json` recording the version and a SHA-256 per file. `scripts/bundle-rtklib.sh`, `src-tauri/resources/rtklib`
+- Engine lookup in this order: the bundle, a copy the installer placed in the data folder, `PATH`, then the folders the web build searched. `rtklib.rs`, `preflight`
+- Recovery installer for a build with no bundle: the one pinned official archive, SHA-256 verified, written only inside the app's data folder, with a stated method (official Windows binaries, or a source build with `make` and a C compiler). `postprocess.js`, `rtklib_install`
 - Install progress with percentage and step text, polled from a background job. `postprocess.js`, `rtklib_install`
 - Install record naming the platform and the installed binaries, trusted only when those binaries still resolve in this installation. `rtklib_install`, `preflight`
 - Local correction run with `rnx2rtkp` in a temporary folder, returning the `.pos` and deleting the temporaries. `postprocess.js`, `rtklib_run`

@@ -23,5 +23,9 @@ tauri-plugin-single-instance = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 regex = "1"
+# The bridge hands the converter its bytes as base64, and the installer checks
+# the pinned download with SHA-256. Both were already in the tree through Tauri.
+base64 = "0.22"
+sha2 = "0.10"
 ureq = { version = "2.10", features = ["json", "gzip"] }
 zip = { version = "2", default-features = false, features = ["deflate"] }

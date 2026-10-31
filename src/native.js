@@ -3,8 +3,8 @@
  * Two jobs. The first is the project store: before the interface's own scripts
  * run, this seeds the project and the preferences the shell read from disk, and
  * afterwards it mirrors every write back to those files. The second is the nine
- * endpoints that used to come from serve.py, which answer 503 until their batch
- * lands (docs/analysis.md has the table).
+ * endpoints that used to come from serve.py, each answered by a Rust command
+ * (docs/analysis.md has the table).
  *
  * This file must load before the rest of the interface, because the interface
  * reads localStorage the moment it parses and the project has to be there by
@@ -479,9 +479,11 @@
    *
    * The interface still asks for these paths with fetch, because that is what
    * the web build did. Each one now names the Rust command that answers it, and
-   * the query string is read the way serve.py read it. A command failure comes
-   * back as 502 with the message the card shows, which is the status and body
-   * the Python proxy used for the same failure.
+   * the query string and the body are read the way serve.py read them. A
+   * command that refuses comes back with the status and the sentence the Python
+   * proxy used: 409 when RTKLIB is missing, 413 when a file is too large, 415
+   * for a closed receiver format, 422 when the engine refused the data, 504 for
+   * a timeout.
    */
 
   var ROUTES = {
@@ -521,15 +523,40 @@
         hours: hours,
         interval: interval
       });
+    },
+    '/api/rtklib/install/info': function () {
+      return invoke('rtklib_install_info');
+    },
+    '/api/rtklib/install/status': function () {
+      return invoke('rtklib_install_status');
+    },
+    '/api/rtklib/install': function (query, body) {
+      var sent = parse(body.text) || {};
+      return invoke('rtklib_install', { confirm: sent.confirm === true });
+    },
+    '/api/rtklib/convert': function (query, body) {
+      var name = query.get('name') || 'receiver';
+      var format = query.get('format') || '';
+      var mtime = Number(query.get('mtime') || 0);
+      if (!body.base64) {
+        return Promise.reject({ status: 400, message: 'Send the raw receiver file in the request body.' });
+      }
+      // The bytes travel as base64: an array of forty million numbers would
+      // serialize to a string four times the size of the log.
+      return invoke('rtklib_convert', {
+        name: name.slice(0, 200),
+        format: format.slice(0, 20),
+        mtime: isFinite(mtime) && mtime > 0 ? mtime : null,
+        base64: body.base64
+      });
+    },
+    '/api/rtklib/run': function (query, body) {
+      var payload = parse(body.text);
+      if (!payload || typeof payload !== 'object') {
+        return Promise.reject('The correction request was not readable.');
+      }
+      return invoke('rtklib_run', { payload: payload });
     }
-  };
-
-  var PENDING = {
-    '/api/rtklib/install/info': { command: 'rtklib_install_info', batch: 4 },
-    '/api/rtklib/install/status': { command: 'rtklib_install_status', batch: 4 },
-    '/api/rtklib/install': { command: 'rtklib_install', batch: 4 },
-    '/api/rtklib/convert': { command: 'rtklib_convert', batch: 4 },
-    '/api/rtklib/run': { command: 'rtklib_run', batch: 4 }
   };
 
   function json(status, body) {
@@ -537,6 +564,47 @@
       status: status,
       headers: { 'Content-Type': 'application/json; charset=utf-8' }
     });
+  }
+
+  /** A command refusal carries the status the web build's proxy used. */
+  function refusal(error) {
+    var status = error && typeof error === 'object' ? Number(error.status) : 0;
+    var message = error && typeof error === 'object' ? error.message : error;
+    return json(status >= 400 && status < 600 ? status : 502, {
+      ok: false,
+      error: String(message === undefined || message === null ? error : message),
+      status: status || 502
+    });
+  }
+
+  /** Read a POST body into either text or base64, whichever it is. */
+  function readBody(init) {
+    var body = init && init.body;
+    if (body === undefined || body === null) return Promise.resolve({ text: '' });
+    if (typeof body === 'string') return Promise.resolve({ text: body });
+    if (typeof Blob !== 'undefined' && body instanceof Blob) {
+      return body.arrayBuffer().then(function (buffer) {
+        return { base64: chunkedBase64(new Uint8Array(buffer)) };
+      });
+    }
+    if (typeof ArrayBuffer !== 'undefined' && body instanceof ArrayBuffer) {
+      return Promise.resolve({ base64: chunkedBase64(new Uint8Array(body)) });
+    }
+    if (typeof ArrayBuffer !== 'undefined' && ArrayBuffer.isView(body)) {
+      return Promise.resolve({
+        base64: chunkedBase64(new Uint8Array(body.buffer, body.byteOffset, body.byteLength))
+      });
+    }
+    return Promise.resolve({ text: String(body) });
+  }
+
+  function chunkedBase64(bytes) {
+    var chunk = 0x8000;
+    var parts = [];
+    for (var index = 0; index < bytes.length; index += chunk) {
+      parts.push(String.fromCharCode.apply(null, bytes.subarray(index, index + chunk)));
+    }
+    return btoa(parts.join(''));
   }
 
   var realFetch = window.fetch.bind(window);
@@ -550,26 +618,19 @@
     var split = url.split('?');
     var path = split[0];
     var query = new URLSearchParams(split[1] || '');
-    if (ROUTES[path]) {
-      return ROUTES[path](query).then(
-        function (body) {
-          return json(200, body);
-        },
-        function (error) {
-          return json(502, { ok: false, error: String(error) });
-        }
+    var route = ROUTES[path];
+    if (!route) {
+      return Promise.resolve(
+        json(404, { ok: false, error: 'Unknown endpoint.', endpoint: path })
       );
     }
-
-    var entry = PENDING[path] || { command: 'none', batch: 0 };
-    return Promise.resolve(
-      json(503, {
-        ok: false,
-        error: 'The desktop backend does not answer yet.',
-        endpoint: path,
-        command: entry.command,
-        batch: entry.batch
-      })
+    return readBody(init).then(function (body) {
+      return route(query, body);
+    }).then(
+      function (body) {
+        return json(200, body);
+      },
+      refusal
     );
   };
 })();

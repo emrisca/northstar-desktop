@@ -2,7 +2,7 @@
 
 Northstar runs in a browser today, served by a Python script. This plan turns it into a desktop app without rewriting the interface, and splits the work so each batch can be built, tested and pushed on its own.
 
-State: batches 0 to 3 done. Batch 4 next.
+State: batches 0 to 4 done. Batch 5 next.
 
 ## How a batch finishes
 
@@ -88,14 +88,34 @@ Not exercised. The readiness card in the packaged window, which needs the post-p
 
 ## Batch 4. RTKLIB
 
-Goal. Conversion and correction run without Python and without a compiler on the machine.
+Delivered.
 
-- Bundle the built tools per platform, with the licence, and record what is bundled.
-- `rtklib_convert` and `rtklib_run` with the existing 48 MB input and 64 MB output caps and the same temporary folder behaviour.
-- `rtklib_install`, `rtklib_install_info` and `rtklib_install_status` as the recovery path, emitting progress events to the existing installer panel.
-- The install record keeps its rule: a record only counts when its platform matches and its binaries still resolve.
+- The tools ship inside the app. `scripts/bundle-rtklib.sh` copies a working build into `src-tauri/resources/rtklib/<platform>/` with its BSD licence and a `BUNDLED.json` naming the version, the platform and a SHA-256 per file; `tauri.conf.json` copies that folder into the app's resources. The macOS bundle is committed: `rnx2rtkp` (833 KB) and `convbin` (657 KB) from the same 2.4.3 b34 source the web build built, so a checkout runs both jobs without a compiler.
+- `src-tauri/src/rtklib.rs` owns the lookup order and the process runner. The bundle is read first, then a copy the installer placed in the data folder, then `PATH`, then the folders the web build searched, so an existing install keeps working. `preflight.rs` reports from the same list and takes the version from `BUNDLED.json` when the bundle is what answered.
+- `src-tauri/src/convert.rs` is `rtklib_convert`, a port of `rtklib_convert.py`: the same format table and signature checks, the same 48 MB input and 64 MB output caps, the same temporary folder, the same refusal for a closed format such as SSF, and the same sentences.
+- `src-tauri/src/correct.rs` is `rtklib_run`, a port of `rtklib_run.py`: the same 48 MB payload, 20 MB per file, 64 KB configuration and 25 MB output caps, no more than eight navigation files, a configuration that names a `file` or `path` setting refused, and the engine's own complaint passed through.
+- `src-tauri/src/install.rs` is the recovery path (`rtklib_install_info`, `rtklib_install_status`, `rtklib_install`): the one pinned archive, SHA-256 verified, extracted on Windows or built from source on macOS and Linux, placed in the data folder with the install record, and refused outright when the bundle already provides the tools. The panel polls the job, so the job is the channel: step, percentage, log lines and end state.
+- `src-tauri/src/failure.rs` carries the status a refusal used to have. `src/native.js` turns it back into the proxy's status, reads the query string and the body the way `serve.py` did, and sends a file as base64 because an array of forty million numbers would serialise to four times the bytes.
 
-Check. A real `.ubx` log converts to RINEX 3.03. A prepared job runs to a `.pos`, only fixed epochs are averaged, and the accepted waypoint matches the web build on the same inputs. A machine without a compiler completes both jobs.
+Check. 66 tests pass, seven are opt-in. Two of those seven drive the bundled engine:
+
+| What | Result |
+| --- | --- |
+| A UBX log written to the published RXM-RAW layout, eight satellites, 120 epochs | RINEX 3.03 with 120 epochs, in 31 ms, from the bundled `convbin` |
+| The NOAA ZBW1 archive for 18 March 2022 with its navigation file and SP3, through the bundled `rnx2rtkp` | A `.pos` with the header and both solution rows |
+| KINGS.obs (a single-frequency GeoXT), the P283 archive for 25 October 2026 with its navigation file and the IGR orbit, run with `NORTHSTAR_FREQUENCY=l1` | A `.pos` with 249 epochs, 12 of them fixed, in 114 ms. The same job at the dual-frequency default produced no position rows at all, which is what the interface's frequency warning is for: an L1-only receiver has to be told to use L1 |
+
+The first two were then run a second time through the web build's Python (`convert_bytes` and `run_correction`) on the same bytes, and the results are byte-identical: the observation file and the `.pos` match, including line endings. That is the parity the batch was for, because the arithmetic is the engine's and the port's job is to feed it exactly what the web build fed it.
+
+None of the three needed a compiler: both ran from `src-tauri/resources/rtklib/macos/bin` and nothing invoked `make` or `cc`. The shell launches with the resources copied to `target/debug/rtklib/macos`, which is the first place the lookup now reads.
+
+The bridge's new half was exercised in a Node harness with the shell stubbed: a `POST` of a byte array for a conversion arrives as base64 with the name, format and timestamp, the correction payload arrives whole, the installer routes name their commands, a 409 refusal keeps its status and its sentence, an empty conversion body is 400, and an unknown path is 404.
+
+Not exercised. The Convert card and the post-processing dialog with a real click in the packaged window, which is the same gap batch 3 recorded for the readiness card.
+
+The recovery installer's own arc found a defect the unit tests could not: it downloaded the pinned archive, matched its SHA-256, and then refused the extraction with "The RTKLIB archive contained an unsafe path". The containment check canonicalised the destination while comparing it against a lexically joined member path, and on macOS the temporary folder sits behind the `/var` to `/private/var` symlink, so every member looked like it escaped. The check is now lexical (reject an absolute name, a drive prefix or any `..` component) and a test extracts through a symlinked destination, which is the shape of the real failure. After that fix the opt-in installer test downloads, verifies, places both binaries and writes a record the readiness check accepts, in 21 seconds.
+
+Still open from this batch: a Windows and a Linux bundle. The script produces either one on that platform, and the recovery installer covers a build that has neither, but only the macOS folder is committed so far.
 
 ## Batch 5. The native shell
 
@@ -146,7 +166,7 @@ Cesium, proj4 and Turf expect browser globals, and the content security policy h
 
 The map's keyboard shortcuts will collide with the application menu until batch 5 decides which layer owns them.
 
-Bundled RTKLIB binaries change where the readiness check looks, so the `tools/rtklib` path has to go in one step rather than drift.
+Bundled RTKLIB binaries changed where the readiness check looks, and batch 4 did it in one step: the bundle is one entry in one list, and an existing `tools/rtklib` install is still found after it. A platform whose bundle is missing falls back to the recovery installer, which needs a compiler only on macOS and Linux.
 
 Atomic writes are the only protection against a corrupted project file, and a rename over an open file works only within one volume.
 

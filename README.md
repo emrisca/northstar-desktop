@@ -4,7 +4,7 @@ Northstar is a field survey tool: waypoints on a map, property boundaries, dista
 
 This repository is the desktop build. It is the same interface in a native window, with the Python server replaced by Rust commands, so there is no terminal to start, no localhost, and no Python on the machine.
 
-Status: **batch 3**. The window opens on the current interface, the map, waypoint, line and measurement code all work, nothing loads from a content delivery network, a project is a file on disk instead of a webview's storage, and the NOAA station search and base download plus the readiness check answer from Rust. The five RTKLIB endpoints still answer with a message until batch 4. [docs/plan.md](docs/plan.md) tracks each batch.
+Status: **batch 4**. The window opens on the current interface, the map, waypoint, line and measurement code all work, nothing loads from a content delivery network, a project is a file on disk instead of a webview's storage, and all nine endpoints that used to come from `serve.py` answer from Rust. RTKLIB ships inside the build, so converting a raw log and running a correction need neither Python nor a compiler. [docs/plan.md](docs/plan.md) tracks each batch.
 
 ## Run it
 
@@ -29,7 +29,13 @@ src-tauri/         the window, the Rust commands, and the Tauri configuration
 src-tauri/src/store.rs   the project and settings files
 src-tauri/src/noaa.rs    the NGS station search, station metadata and UFCORS base download
 src-tauri/src/preflight.rs   the readiness report
+src-tauri/src/rtklib.rs  where the bundled tools are, and how a child process is run
+src-tauri/src/convert.rs the convbin conversion
+src-tauri/src/correct.rs the rnx2rtkp correction
+src-tauri/src/install.rs the RTKLIB recovery installer
+src-tauri/src/failure.rs a command refusal, with the status the proxy used
 src-tauri/src/lib.rs     the window, the commands and the boot payload
+src-tauri/resources/rtklib/<platform>/   the RTKLIB build this app ships
 docs/              the inventory, the port analysis and the batch plan
 ```
 
@@ -45,6 +51,20 @@ One project is one file, `<name>.northstar.json`, in the app's data folder:
 The Project menu offers Open project (a native file dialog), Recent projects (the list, which is also what a first launch shows), New project, Save now and Save a copy. A project dragged onto the window opens in the window that is already running, and so does a second launch that names a file. Saving happens on its own 400 ms after the last change, and the dot beside the project name says whether the file is current.
 
 The project file keeps the shape the web build exports, plus a `version`. A file without one is version 1 and is migrated on read, so a project exported from the web build opens here, and a project saved here opens there.
+
+## RTKLIB
+
+Converting a receiver log and running a correction are the two things that used to need an install. The web build downloaded RTKLIB 2.4.3 b34 and built it from source, which needed `make` and a C compiler on the machine. This build carries the tools instead: `src-tauri/resources/rtklib/<platform>/bin` holds `rnx2rtkp` and `convbin` for the platform it was built for, with the BSD licence and a `BUNDLED.json` recording the version and a SHA-256 per file, and `tauri.conf.json` copies that folder into the app's resources.
+
+The engine lookup reads the bundle first, then a copy the installer placed in the data folder, then `PATH`, then the folders the web build searched, so an existing install keeps working.
+
+Refreshing the bundle is one command, run on the platform whose binaries are wanted:
+
+```sh
+scripts/bundle-rtklib.sh ../northstar/tools/rtklib
+```
+
+The installer the post-processing card offers stays as the recovery path for a build whose bundle is empty: it downloads the one pinned official archive, verifies its SHA-256, and writes only inside the app's data folder. Nothing is installed system-wide and no administrator password is requested.
 
 ## Offline
 

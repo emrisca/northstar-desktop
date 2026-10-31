@@ -4,7 +4,9 @@
 //! present, and can NOAA be reached. In the desktop build the interface is
 //! compiled into the binary, so there are no loose app files to miss; the third
 //! question is the same fixed NOAA station, and the middle one looks for the
-//! tools in the bundle, on the PATH, and in the folders the web build searched.
+//! tools in the bundle the app ships, then in the data folder the recovery
+//! installer writes, then on the PATH, then in the folders the web build
+//! searched.
 //!
 //! The shape is the one the readiness card reads: `ok`, `app.missing`,
 //! `rtklib.found`, `rtklib.release`, `rtklib.binaries.rnx2rtkp.version`,
@@ -22,7 +24,7 @@ use std::time::Instant;
 use crate::noaa;
 
 const PROBE_TIMEOUT: Duration = Duration::from_secs(3);
-const HINT: &str = "Install RTKLIB 2.4.3 or newer with the installer in Northstar, put rnx2rtkp and convbin on PATH, or copy them into tools/rtklib/.";
+const HINT: &str = "RTKLIB ships with this build. If it is missing, use the installer in Northstar, or put rnx2rtkp and convbin on PATH.";
 
 /// The name the RTKLIB installer records for this computer.
 pub fn platform_key() -> &'static str {
@@ -37,10 +39,17 @@ pub fn platform_key() -> &'static str {
     }
 }
 
-/// Where an RTKLIB build could be, in the order the web build looked.
-pub fn candidate_dirs(root: &Path) -> Vec<PathBuf> {
+/// Where an RTKLIB build could be: the bundle this app ships first, because it
+/// is the version the build was tested with and the one the About window names,
+/// then the folders the web build searched inside the data folder.
+pub fn candidate_dirs(root: &Path, bundle: Option<&Path>) -> Vec<PathBuf> {
     let home = std::env::var_os("HOME").map(PathBuf::from);
-    let mut candidates: Vec<PathBuf> = vec![
+    let mut candidates: Vec<PathBuf> = Vec::new();
+    if let Some(bundle) = bundle {
+        candidates.push(crate::rtklib::bundle_bin(bundle));
+        candidates.push(bundle.to_path_buf());
+    }
+    candidates.extend([
         root.to_path_buf(),
         root.join("tools"),
         root.join("tools").join("rtklib"),
@@ -53,7 +62,7 @@ pub fn candidate_dirs(root: &Path) -> Vec<PathBuf> {
         PathBuf::from("/usr/bin"),
         PathBuf::from("/opt/RTKLIB/bin"),
         PathBuf::from("/opt/rtklib/bin"),
-    ];
+    ]);
     if let Some(home) = &home {
         candidates.push(home.join("RTKLIB").join("bin"));
         candidates.push(home.join("rtklib").join("bin"));
@@ -178,22 +187,30 @@ fn truncate(text: &str, limit: usize) -> String {
     text.chars().take(limit).collect()
 }
 
-fn find_tool(name: &str, directories: &[PathBuf]) -> Value {
-    let suffix = if cfg!(target_os = "windows") { ".exe" } else { "" };
-    let file = format!("{name}{suffix}");
-    for directory in path_dirs() {
-        let candidate = directory.join(&file);
-        if candidate.is_file() {
-            return probe(&candidate);
-        }
-    }
+/// The first of `directories`, then the PATH, that holds the tool. The bundle
+/// comes first, so a stale copy on the PATH cannot win over the shipped build.
+pub fn find_path(name: &str, directories: &[PathBuf]) -> Option<PathBuf> {
+    let file = crate::rtklib::binary_name(name);
     for directory in directories {
         let candidate = directory.join(&file);
         if candidate.is_file() {
-            return probe(&candidate);
+            return Some(candidate);
         }
     }
-    json!({ "found": false, "path": "", "version": "" })
+    for directory in path_dirs() {
+        let candidate = directory.join(&file);
+        if candidate.is_file() {
+            return Some(candidate);
+        }
+    }
+    None
+}
+
+fn find_tool(name: &str, directories: &[PathBuf]) -> Value {
+    match find_path(name, directories) {
+        Some(path) => probe(&path),
+        None => json!({ "found": false, "path": "", "version": "" }),
+    }
 }
 
 /// The version the installer recorded, but only when the record still describes
@@ -238,11 +255,16 @@ pub fn installed_release(root: &Path) -> String {
         .unwrap_or_default()
 }
 
-pub fn rtklib_report(root: &Path) -> Value {
-    let directories = candidate_dirs(root);
+pub fn rtklib_report(root: &Path, bundle: Option<&Path>) -> Value {
+    let directories = candidate_dirs(root, bundle);
     let rnx2rtkp = find_tool("rnx2rtkp", &directories);
     let convbin = find_tool("convbin", &directories);
-    let release = installed_release(root);
+    let recorded = installed_release(root);
+    let release = if recorded.is_empty() {
+        crate::rtklib::bundle_version(bundle)
+    } else {
+        recorded
+    };
     json!({
         "found": rnx2rtkp.get("found").and_then(Value::as_bool).unwrap_or(false),
         "converterFound": convbin.get("found").and_then(Value::as_bool).unwrap_or(false),
@@ -285,11 +307,11 @@ pub fn platform_block() -> Value {
     })
 }
 
-/// The whole report. `tools_root` is where an RTKLIB build would live and
-/// `app_root` is the data folder the store owns.
-pub fn system_report(tools_root: &Path, app_root: &Path, check_noaa: bool) -> Value {
+/// The whole report. `app_root` is the data folder the store owns and `bundle`
+/// is where this build's RTKLIB tools were copied, if it has any.
+pub fn system_report(app_root: &Path, bundle: Option<&Path>, check_noaa: bool) -> Value {
     let app = data_folder(app_root);
-    let rtklib = rtklib_report(tools_root);
+    let rtklib = rtklib_report(app_root, bundle);
     let noaa = if check_noaa {
         noaa::reachability(Duration::from_secs(6))
     } else {
@@ -328,7 +350,7 @@ mod tests {
     #[test]
     fn the_report_keeps_the_shape_the_readiness_card_reads() {
         let root = fixture("shape");
-        let report = system_report(&root, &root, false);
+        let report = system_report(&root, None, false);
         for key in ["ok", "postProcessingReady", "platform", "app", "rtklib", "noaa"] {
             assert!(report.get(key).is_some(), "{key} is missing");
         }
@@ -347,7 +369,7 @@ mod tests {
         let missing = root.join("not-there");
         fs::create_dir_all(&missing).unwrap();
         fs::remove_dir_all(&missing).unwrap();
-        let report = system_report(&root, &missing, false);
+        let report = system_report(&missing, None, false);
         assert_eq!(report["app"]["ok"], json!(false));
         assert_eq!(report["ok"], json!(false));
         let _ = fs::remove_dir_all(&root);
@@ -452,6 +474,42 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
+    fn the_bundled_build_wins_over_a_copy_in_the_data_folder() {
+        use std::os::unix::fs::PermissionsExt;
+        let root = fixture("bundle");
+        let bundle = root.join("rtklib").join("macos");
+        let bundled_bin = bundle.join("bin");
+        let installed_bin = root.join("data").join("tools").join("rtklib").join("bin");
+        fs::create_dir_all(&bundled_bin).unwrap();
+        fs::create_dir_all(&installed_bin).unwrap();
+        for (folder, version) in [(&bundled_bin, "bundled"), (&installed_bin, "older")] {
+            let tool = folder.join("rnx2rtkp");
+            fs::write(&tool, format!("#!/bin/sh\necho 'RTKLIB ver. {version}'\n")).unwrap();
+            let mut permissions = fs::metadata(&tool).unwrap().permissions();
+            permissions.set_mode(0o755);
+            fs::set_permissions(&tool, permissions).unwrap();
+        }
+        fs::write(bundle.join("BUNDLED.json"), json!({ "version": "2.4.3 b34" }).to_string())
+            .unwrap();
+
+        let report = rtklib_report(&root.join("data"), Some(&bundle));
+        assert_eq!(report["found"], json!(true));
+        assert_eq!(report["release"], json!("2.4.3 b34"));
+        assert_eq!(
+            report["binaries"]["rnx2rtkp"]["path"],
+            json!(bundled_bin.join("rnx2rtkp").display().to_string())
+        );
+        let searched = report["searched"].as_array().unwrap();
+        assert_eq!(
+            searched[0],
+            json!(bundled_bin.display().to_string()),
+            "the bundle is looked in before anything else"
+        );
+        let _ = fs::remove_dir_all(&root);
+    }
+
+    #[cfg(unix)]
+    #[test]
     fn a_tool_in_a_candidate_folder_is_found_and_reported() {
         use std::os::unix::fs::PermissionsExt;
         let root = fixture("candidate");
@@ -463,7 +521,7 @@ mod tests {
         permissions.set_mode(0o755);
         fs::set_permissions(&tool, permissions).unwrap();
 
-        let report = rtklib_report(&root);
+        let report = rtklib_report(&root, None);
         assert_eq!(report["found"], json!(true));
         assert_eq!(report["binaries"]["rnx2rtkp"]["version"], json!("RTKLIB ver. 2.4.3"));
         assert_eq!(report["converterFound"], json!(false));

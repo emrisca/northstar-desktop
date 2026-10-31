@@ -1,0 +1,12 @@
+{
+  "version": "2.4.3 b34",
+  "releaseTag": "v2.4.3-b34",
+  "license": "BSD 2-Clause",
+  "platform": "macos",
+  "bundledAt": "2026-10-31T02:14:05Z",
+  "files": {
+    "convbin": "18b7514e4de5ef4d964c099ad37cdc9b93567ea16acba95554e246c133fbd322",
+    "rnx2rtkp": "d201a55bec618555cc7280887009e3ce0ec20152371b9d47c23adc1db90a086e",
+    "LICENSE.txt": "c8ae2fbe280c14e086af52920797a3d53f42631f41cfe73048fd481e5b05db09"
+  }
+}
