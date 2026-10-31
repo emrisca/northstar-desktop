@@ -408,7 +408,7 @@
         Cesium.Cartesian3.fromDegrees(lon, lat)
       );
       if (!screen) return;
-      const y = screen.y - (point.symbol === 'pin' ? 14 : 0);
+      const y = screen.y - (point.symbol === 'pin' ? 7 : 0);
       const distance = Math.hypot(screen.x - position.x, y - position.y);
       if (distance < bestDistance) {
         bestDistance = distance;
@@ -620,11 +620,18 @@
     app()?.save?.();
   }
 
+  /** The waypoint dot, matching the 2D map's point size setting. */
+  function markerSize(selected) {
+    const value = app()?.settings?.pointSize;
+    const base = value === 'small' ? 11 : value === 'large' ? 20 : 14;
+    return base + (selected ? 3 : 0);
+  }
+
   function symbolImage(point, selected) {
     const appApi = app();
     if (appApi?.pointSymbolSVG) {
-      const color = selected ? '#f47752' : '#3478f6';
-      return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(appApi.pointSymbolSVG(point.symbol, color, selected, 34));
+      const color = selected ? '#f47752' : (app()?.settings?.pointColor || '#3478f6');
+      return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(appApi.pointSymbolSVG(point.symbol, color, selected, markerSize(selected)));
     }
     return undefined;
   }
@@ -650,7 +657,9 @@
       S.lines.map((line) => [line.id, line.name, line.ids, line.closed, line.color]),
       S.selected,
       S.hidden?.points === true,
-      S.hidden?.boundary === true
+      S.hidden?.boundary === true,
+      app()?.settings?.pointSize,
+      app()?.settings?.pointColor
     ]);
     if (stamp === lastDataStamp) return;
     lastDataStamp = stamp;
@@ -666,8 +675,8 @@
           position: Cesium.Cartesian3.fromDegrees(+point.lon, +point.lat),
           billboard: {
             image,
-            width: selected ? 34 : 28,
-            height: selected ? 34 : 28,
+            width: markerSize(selected),
+            height: markerSize(selected),
             verticalOrigin: point.symbol === 'pin' ? Cesium.VerticalOrigin.BOTTOM : Cesium.VerticalOrigin.CENTER,
             scaleByDistance: new Cesium.NearFarScalar(100, 1.15, 300000, 0.75)
           },
