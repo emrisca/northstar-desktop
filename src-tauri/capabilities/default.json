@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Batch 0 calls no commands, so the main window needs only the core defaults.",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

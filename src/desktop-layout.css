@@ -1,0 +1,183 @@
+/* Desktop layout for narrower windows (GeoLibre-style compact mode):
+   the side-by-side dock is kept at every width, the toolbar goes icon-only,
+   project metadata is hidden, and the dock can be collapsed for map space. */
+
+:root{--scroll-thumb:#8c95a5}.dark{--scroll-thumb:#4a505c}
+.dock-tabs{display:none!important}
+
+/* The app fills the window; empty space must not scroll the whole page. */
+html,body{height:100%;overflow:hidden}
+/* Closed dialogs (partition, settings, etc.) must never render as page content. */
+dialog:not([open]){display:none!important}
+
+/* Object tree: scrolls inside its own area when folders grow long, with a slim scrollbar. */
+#treeChildren,.inspector-content,.bottom-content{scrollbar-width:thin;scrollbar-color:var(--scroll-thumb) transparent}
+#treeChildren{max-height:min(360px,40vh);overflow-y:auto!important;overflow-x:hidden!important;padding-right:2px;scrollbar-width:thin!important;scrollbar-color:var(--scroll-thumb) transparent!important}
+.left-panel #treeChildren::-webkit-scrollbar{width:6px!important;height:6px!important}
+.left-panel #treeChildren::-webkit-scrollbar-track{background:transparent!important}
+.left-panel #treeChildren::-webkit-scrollbar-thumb{background:var(--scroll-thumb)!important;border-radius:3px}
+.left-panel #treeChildren::-webkit-scrollbar-thumb:hover{background:var(--muted)!important}
+#treeChildren::-webkit-scrollbar,.inspector-content::-webkit-scrollbar,.bottom-content::-webkit-scrollbar{width:6px;height:6px}
+#treeChildren::-webkit-scrollbar-track,.inspector-content::-webkit-scrollbar-track,.bottom-content::-webkit-scrollbar-track{background:transparent}
+#treeChildren::-webkit-scrollbar-thumb,.inspector-content::-webkit-scrollbar-thumb,.bottom-content::-webkit-scrollbar-thumb{background:var(--scroll-thumb);border-radius:3px}
+#treeChildren::-webkit-scrollbar-thumb:hover,.inspector-content::-webkit-scrollbar-thumb:hover,.bottom-content::-webkit-scrollbar-thumb:hover{background:var(--muted)}
+#treeChildren::-webkit-scrollbar-corner,.inspector-content::-webkit-scrollbar-corner,.bottom-content::-webkit-scrollbar-corner{background:transparent}
+
+/* Object tree: hide the scrollbar itself; the tree still scrolls with wheel or trackpad. */
+#treeChildren{scrollbar-width:none!important}
+#treeChildren::-webkit-scrollbar,.left-panel #treeChildren::-webkit-scrollbar{display:none!important;width:0!important;height:0!important}
+
+/* Keep the desktop dock + map grid at every width (overrides older phone rules). */
+.workspace{grid-template-columns:var(--dock-width,320px) 5px minmax(0,1fr)!important;grid-template-rows:none!important}
+.left-panel{display:grid!important;grid-column:1!important;grid-row:1!important;border-top:0!important}
+.dock-splitter{display:block!important;grid-column:2!important;grid-row:1!important}
+.main-area{grid-column:3!important;grid-row:1!important}
+
+/* Collapsed dock: the dock folds into a slim rail on the left edge so it can be reopened. */
+.workspace.dock-collapsed{grid-template-columns:30px 0 minmax(0,1fr)!important}
+.workspace.dock-collapsed .left-panel,
+.workspace.dock-collapsed .dock-splitter{display:none!important}
+.dock-header{display:flex;align-items:center}
+.dock-rail:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+
+.dock-rail{display:none;grid-column:1;grid-row:1;flex-direction:column;align-items:center;gap:10px;width:30px;padding:12px 0;margin:0;border:0;border-right:1px solid var(--line);background:var(--panel);color:var(--soft);cursor:pointer}
+.dock-rail .material-symbols{font-size:20px}
+.dock-rail small{writing-mode:vertical-rl;transform:rotate(180deg);font-size:10.5px;font-weight:700;letter-spacing:.08em}
+.dock-rail:hover{color:var(--blue);background:var(--blue2)}
+.workspace.dock-collapsed .dock-rail{display:flex}
+
+@media (max-width:760px){.dock-rail{display:none!important}}
+
+/* Dock section visibility: hidden sections leave the grid, so the others take the space. */
+.dock-off{display:none!important}
+/* Keep section headings at their natural height when another section is hidden (stops auto rows stretching over the list). */
+.dock-panels{align-content:start!important}
+.dock-view-toggle{width:26px;height:26px;margin-left:auto;flex:0 0 auto;display:inline-grid;place-items:center;border:1px solid var(--line);border-radius:6px;background:var(--panel);color:var(--soft);font-size:17px;cursor:pointer;padding:0}
+.dock-view-toggle:hover{color:var(--blue);border-color:#b7cdf7;background:var(--blue2)}
+.dock-view-toggle[aria-pressed="false"]{color:var(--muted);border-style:dashed}
+.dock-view-toggle.is-last{opacity:.45;cursor:not-allowed}
+.dock-header .dock-view-toggle{margin-left:auto}
+.right-heading .dock-view-toggle,.waypoint-heading .dock-view-toggle{margin-left:auto}
+.dock-sections{border-top:1px solid var(--line);padding:6px 4px 4px;font-size:12px}
+.dock-sections-head{font-size:10.5px;font-weight:700;letter-spacing:.08em;color:var(--muted);padding:2px 6px 4px}
+.dock-section-row{display:flex;align-items:center;gap:8px;height:26px;padding:0 4px 0 8px;border-radius:5px;color:var(--ink)}
+.dock-section-row:hover{background:var(--blue2)}
+.dock-section-row:not(.is-off){display:none}
+.dock-section-row>.material-symbols{font-size:17px;color:var(--soft)}
+.dock-section-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dock-section-row.is-off{color:var(--muted)}
+.dock-section-row.is-off>.material-symbols{color:var(--muted)}
+.dock-section-row.is-off .dock-section-name{text-decoration:line-through}
+.dock-sections .dock-view-toggle{width:22px;height:22px;font-size:16px}
+.dock-header{gap:4px}
+
+/* Tools menu placeholder for a feature not built yet. */
+.app-menu-item:disabled{opacity:.55;cursor:default;background:transparent}
+.app-menu-item:disabled:hover{background:transparent}
+.coming-soon-tag{margin-left:auto;align-self:center;padding:2px 6px;border-radius:999px;background:var(--blue2);color:var(--blue);font-size:9.5px;font-weight:700;letter-spacing:.04em;white-space:nowrap}
+
+/* Icon-only secondary button beside the measurement actions. */
+.icon-only-button{width:34px;min-width:34px;height:34px;padding:0;display:inline-grid;place-items:center}
+.icon-only-button .material-symbols{font-size:18px}
+
+@media (max-width:1100px){
+  :root{--dock-width:300px}
+  .topbar{gap:16px;padding:0 14px}
+  .brand{width:auto}
+  
+  .toolbar{gap:6px;padding:0 10px;overflow-x:auto}
+  .tool{min-width:36px;height:36px}
+  .tool small{display:none}
+  .map-picker-button{width:170px}
+}
+
+/* The lone visible dock section expands to consume the full side panel. */
+.dock-panels{align-content:stretch!important}
+#treeSection.tree-section-fill{height:auto;min-height:0;flex:1 1 auto;display:flex;flex-direction:column}
+#treeSection.tree-section-fill #treeChildren{flex:1 1 auto;max-height:none!important}
+.tree-row{position:relative}
+.boundary-color-trigger{width:22px;height:22px;border:0;background:transparent;color:var(--muted);border-radius:5px;display:grid;place-items:center;font-size:18px;cursor:pointer;padding:0;flex:0 0 22px}
+.boundary-color-trigger:hover{background:var(--blue2);color:var(--blue)}
+.boundary-color-menu{position:absolute;right:30px;z-index:20;display:flex;gap:5px;padding:6px;background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:0 6px 20px #10182a24}
+.boundary-color-menu button{width:19px;height:19px;padding:0;border:2px solid #fff;border-radius:50%;background:var(--swatch);box-shadow:0 0 0 1px #0002;cursor:pointer}
+.boundary-color-menu button:hover{transform:scale(1.14)}
+.point-symbol-trigger{transition:opacity .12s ease}
+@media (hover:hover){
+  .tree-point-node .point-symbol-trigger{opacity:0;pointer-events:none}
+  .tree-point-node:hover .point-symbol-trigger,.tree-point-node:focus-within .point-symbol-trigger{opacity:1;pointer-events:auto}
+}
+/* Portaled to <body> by app.js so the scrollable tree cannot clip them and the
+   Add data row cannot sit on top of them. */
+#boundaryColorMenu{position:fixed!important;right:auto!important;z-index:10050!important;flex-wrap:wrap;gap:6px;padding:8px;max-width:calc(100vw - 16px)}
+#boundaryColorMenu button{width:22px;height:22px}
+.point-symbol-menu{position:fixed!important;right:auto!important;z-index:10050!important;display:grid;grid-template-columns:repeat(4,24px);gap:4px;padding:7px;max-width:calc(100vw - 16px)}.point-symbol-menu button{width:24px;height:24px;display:grid;place-items:center;border:1px solid var(--line);border-radius:6px;background:var(--panel2);color:var(--ink);box-shadow:none}.point-symbol-menu button:hover{transform:scale(1.08);background:var(--blue2);color:var(--blue)}.point-symbol-menu button .material-symbols{font-size:17px}.point-symbol-menu .point-symbol-label-toggle{grid-column:1/-1;width:auto;display:flex;align-items:center;justify-content:center;gap:5px;height:24px;padding:0 6px;font:600 10px Roboto,Arial,sans-serif;white-space:nowrap}.point-symbol-menu .point-symbol-label-toggle .material-symbols{font-size:15px}
+.angle-toggle{margin:10px 0}
+.icon-only-button{width:34px;min-width:34px;height:34px;padding:0;display:inline-grid;place-items:center}
+.icon-only-button .material-symbols{font-size:18px}
+
+
+.angle-marker-icon{background:transparent;border:0}
+.angle-tag{display:grid;place-items:center;min-width:50px;height:24px;padding:0 6px;border:1px solid var(--angle-color,#21a67a);border-radius:7px;background:#ffffffed;color:#263244;font:600 10px Roboto,Arial,sans-serif;white-space:nowrap;box-shadow:0 1px 4px #10182a26}
+
+
+
+/* Floating map navigation controls */
+.place-search{position:absolute;z-index:1000;top:13px;left:14px;width:min(435px,calc(100% - 360px));max-width:calc(100% - 28px);min-width:220px;margin:0;flex:none;box-shadow:0 2px 10px #10182a20}
+.map-toolbar{left:auto;right:14px;top:13px;z-index:1000}
+.zoom-tools{position:absolute;z-index:1000;right:14px;top:64px;display:flex;flex-direction:column;align-items:center;gap:0;padding:4px;background:var(--panel);border:1px solid var(--line);border-radius:9px;box-shadow:0 2px 10px #10182a20}
+.zoom-tools .tool.compact{width:32px;min-width:32px;height:32px;border-radius:6px;color:var(--ink)}
+.zoom-tools .tool.compact:hover{background:var(--blue2);color:var(--blue)}
+.zoom-tools .zoom-readout{min-width:32px;padding:3px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);font-size:9px;color:var(--muted)}
+.zoom-tools .fit-button{margin:0;border-top:1px solid var(--line);font-size:16px!important}
+@media(max-width:900px){.place-search{width:min(320px,calc(100% - 300px));min-width:180px}.map-toolbar{right:10px;gap:4px}.map-picker-button{width:145px}}
+@media(max-width:620px){.place-search{top:10px;left:10px;width:calc(100% - 20px);min-width:0}.map-toolbar{top:58px;left:10px;right:10px;justify-content:flex-end}.zoom-tools{top:110px;right:10px}}
+/* Keep the search compact and the zoom stack clear of the map action row. */
+.place-search{box-sizing:border-box;width:min(435px,calc(100% - 360px));max-width:435px;flex:0 0 auto}
+.zoom-tools{top:82px;z-index:1002}
+
+
+/* Collapsed search control expands in place when activated. */
+#placeSearch{box-sizing:border-box!important;position:absolute!important;top:13px!important;left:14px!important;z-index:1003!important;display:flex!important;align-items:center!important;width:42px!important;min-width:42px!important;max-width:calc(100% - 28px)!important;height:42px;margin:0!important;padding:4px!important;overflow:visible;border-radius:10px;box-shadow:0 2px 10px #10182a20;transition:width 180ms ease}
+#placeSearch.expanded{width:min(435px,calc(100vw - 360px))!important;min-width:min(270px,calc(100vw - 28px))!important;padding:4px 5px 4px 10px}
+#placeSearch .place-search-toggle{width:32px;min-width:32px;height:32px;padding:0;border:0;border-radius:7px;background:transparent;color:var(--muted);display:grid;place-items:center;font-size:19px;cursor:pointer}
+#placeSearch .place-search-toggle:hover{background:var(--blue2);color:var(--blue)}
+#placeSearch input,#placeSearch .place-search-go{display:none}
+#placeSearch.expanded input,#placeSearch.expanded .place-search-go{display:block}
+#placeSearch.expanded input{flex:1;min-width:0}
+#placeSearch.expanded .place-search-toggle{flex:none}
+.map-toolbar{z-index:1001!important;right:14px!important;top:13px!important}
+body.map-picker-menu-open .map-toolbar,body.overlay-menu-open .map-toolbar{z-index:10004!important}
+#mapPickerMenu{z-index:10005}
+.zoom-tools{position:absolute!important;right:14px!important;top:72px!important;z-index:1002!important;display:flex!important;flex-direction:column!important;align-items:center!important;gap:0!important;width:max-content;padding:4px;background:var(--panel);border:1px solid var(--line);border-radius:9px;box-shadow:0 2px 10px #10182a20}
+.zoom-tools .tool.compact{width:32px;min-width:32px;height:32px;margin:0!important}
+@media(max-width:760px){#placeSearch{top:10px!important;left:10px!important}#placeSearch.expanded{width:calc(100vw - 20px)!important;min-width:0!important}.map-toolbar{top:10px!important;right:60px!important;max-width:calc(100% - 110px);gap:4px;transform:scale(.88);transform-origin:top right}.zoom-tools{top:62px!important;right:10px!important}}
+
+/* Header project identity: the editable name reads as a project, not a stray label. */
+.project-title{display:flex;align-items:center;gap:7px;min-width:0;max-width:min(340px,32vw);padding:3px 7px 3px 6px;border:1px solid var(--line);border-radius:10px;background:var(--panel2)}
+.project-title:hover{border-color:#d8dee9;background:#f5f7fa}
+.project-title:focus-within{border-color:var(--blue);background:var(--panel);box-shadow:0 0 0 2px var(--blue2)}
+.project-title-icon{flex:0 0 18px;width:18px;height:18px;display:grid;place-items:center;font-size:18px;color:var(--blue);line-height:1}
+.project-title-field{display:flex;flex-direction:column;min-width:0;gap:1px}
+.project-title-label{font:700 8px/1 Roboto,Arial,sans-serif;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);padding-left:5px}
+.project-title .workspace-name-input{width:100%;min-width:70px;max-width:220px;height:20px;padding:0 4px;border:0;border-radius:4px;background:transparent;font:700 15px/1.15 Roboto,Arial,sans-serif;color:var(--ink)}
+.project-title .workspace-name-input:hover{border-color:transparent;background:var(--panel)}
+.project-title .workspace-name-input:focus{outline:none;background:var(--panel);box-shadow:0 0 0 1px var(--blue)}
+.app-menu-button .app-menu-icon{flex:0 0 18px;width:18px;height:18px;display:grid;place-items:center;font-size:18px;line-height:1;color:var(--muted);transition:color .12s ease}
+.app-menu-button:hover .app-menu-icon,.app-menu-button[aria-expanded="true"] .app-menu-icon{color:var(--blue)}
+.dark .project-title{background:#252b34;border-color:#3a414c}
+.dark .project-title:hover{background:#2a3039;border-color:#424956}
+.dark .project-title .workspace-name-input:hover,.dark .project-title .workspace-name-input:focus{background:#20242c}
+@media(max-width:1100px){.project-title{max-width:230px}.project-title .workspace-name-input{max-width:145px}}
+
+/* The Northstar mark lives with the object tree so the header starts with the project. */
+.dock-title{display:flex;align-items:center;gap:7px;min-width:0}
+.dock-brand{display:inline-flex;align-items:center;flex:0 0 auto}
+.dock-brandmark{width:20px;height:20px;border-radius:6px}
+.dock-brandmark svg{width:16px;height:16px}
+.dock-section-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* Align the survey remove control with the object-tree visibility button. */
+.tree-row[data-select="survey"] .tree-remove{box-sizing:border-box;width:26px;height:26px;flex:0 0 26px;margin-left:auto;display:grid;place-items:center;line-height:1;padding:0}
+.tree-row[data-select="survey"] .tree-remove .material-symbols{line-height:1}
+.tree-row[data-select="survey"] .tree-remove{transform:translateX(-8px)}
+.tree-row[data-select="survey"] .tree-remove{transform:translateX(8px)}

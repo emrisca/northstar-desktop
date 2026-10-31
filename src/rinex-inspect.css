@@ -1,0 +1,81 @@
+/* RINEX observation inspector. Reuses the post-processing dialog and cards. */
+.rinex-inspect-dialog {
+  width: min(860px, calc(100vw - 28px));
+  max-width: 860px;
+}
+.rinex-inspect-dialog .pp-body {
+  min-height: 390px;
+  padding-bottom: 24px;
+}
+.rinex-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.5fr);
+  gap: 9px;
+  margin-bottom: 17px;
+}
+.rinex-stat {
+  min-width: 0;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel2);
+}
+.rinex-stat span { display: block; color: var(--muted); font: 700 9px/1 Roboto, sans-serif; letter-spacing: .08em; text-transform: uppercase; }
+.rinex-stat b { display: block; overflow: hidden; margin-top: 6px; color: var(--ink); font: 700 18px/1.15 Roboto, sans-serif; text-overflow: ellipsis; white-space: nowrap; }
+.rinex-stat small { display: block; overflow: hidden; margin-top: 4px; color: var(--muted); font: 500 9.5px/1.35 Roboto, sans-serif; text-overflow: ellipsis; white-space: nowrap; }
+
+.rinex-points-head,
+.rinex-details-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin: 0 0 8px;
+}
+.rinex-points-head b,
+.rinex-details-head b { display: block; color: var(--ink); font: 600 12px/1.25 Roboto, sans-serif; }
+.rinex-points-head small,
+.rinex-details-head small { display: block; margin-top: 3px; color: var(--muted); font: 500 10px/1.45 Roboto, sans-serif; }
+.rinex-details-head { margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--line2); }
+.rinex-points {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel);
+  overflow: hidden;
+}
+.rinex-point {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 11px;
+  border-bottom: 1px solid var(--line2);
+  cursor: pointer;
+}
+.rinex-point:last-child { border-bottom: 0; }
+.rinex-point:hover { background: var(--panel2); }
+.rinex-point input { flex: 0 0 auto; width: 15px; height: 15px; margin: 0; accent-color: var(--blue); }
+.rinex-point-copy { min-width: 0; flex: 1 1 auto; }
+.rinex-point-copy b { display: block; overflow: hidden; color: var(--ink); font: 600 11px/1.3 Roboto, sans-serif; text-overflow: ellipsis; white-space: nowrap; }
+.rinex-point-copy small { display: block; margin-top: 2px; color: var(--muted); font: 500 9.5px/1.35 Roboto, sans-serif; }
+.rinex-point.no-position { opacity: .62; cursor: default; }
+.rinex-point.no-position:hover { background: transparent; }
+.rinex-points + .rinex-actions { margin-top: 10px; }
+.rinex-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.rinex-actions button { min-height: 32px; padding: 0 12px; }
+.rinex-file-card .pp-grid { margin-top: 0; }
+.rinex-inspect-dialog .convert-empty { min-height: 260px; }
+.rinex-inspect-dialog .pp-note.ok { background: rgba(34, 153, 111, .11); color: #167c58; }
+.dark .rinex-inspect-dialog .pp-note.ok { color: #6ee0b3; }
+
+@media (max-width: 620px) {
+  .rinex-inspect-dialog { width: calc(100vw - 16px); }
+  .rinex-inspect-dialog .pp-head { padding: 16px 16px 13px; }
+  .rinex-inspect-dialog .pp-body { padding: 16px; }
+  .rinex-summary { grid-template-columns: 1fr 1fr; }
+  .rinex-stat:last-child { grid-column: 1 / -1; }
+  .rinex-points-head, .rinex-details-head { flex-direction: column; gap: 7px; }
+}

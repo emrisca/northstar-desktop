@@ -1,0 +1,91 @@
+/* CesiumJS 3D globe. Loaded only when the Globe renderer is selected. */
+#cesiumMap {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: none;
+  overflow: hidden;
+  background: #0d1117;
+}
+body.globe-engine #cesiumMap { display: block; }
+body.globe-engine #vectorMap { display: none !important; }
+body.globe-engine #mapCanvas { display: none !important; }
+body.globe-engine .map-wrap { background: #0d1117; }
+body.globe-engine .history-bar,
+body.globe-engine .overlay-control,
+body.globe-engine .parcel-toggle { display: none !important; }
+
+#cesiumMap .cesium-viewer,
+#cesiumMap .cesium-viewer-cesiumWidgetContainer,
+#cesiumMap .cesium-widget,
+#cesiumMap .cesium-widget canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+#cesiumMap .cesium-viewer-bottom { display: none !important; }
+#cesiumMap .cesium-widget-credits {
+  display: block;
+  color: var(--muted);
+  font: 9px/1.4 Roboto, Arial, sans-serif;
+}
+#cesiumMap .cesium-widget-credits a {
+  color: var(--soft);
+  text-decoration: none;
+}
+#cesiumMap .cesium-widget-credits a:hover { text-decoration: underline; }
+
+/*
+ * Northstar shows the active imagery/provider credit in the existing map
+ * attribution strip, together with the CesiumJS credit. The built-in credit
+ * widget only renders an unreadable "Data attribution" link at this size, so
+ * keep its DOM for Cesium but leave the visible credit to the app strip.
+ */
+.cesium-credits { display: none !important; }
+
+.globe-token-row { align-items: flex-start; gap: 12px; }
+.globe-token-input { flex: 1 1 180px; min-width: 0; }
+.globe-token-input input {
+  width: 100%;
+  height: 32px;
+  margin: 0;
+  padding: 0 9px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--panel);
+  color: var(--ink);
+  font: 11px Roboto, Arial, sans-serif;
+}
+.globe-token-input input:focus {
+  outline: none;
+  border-color: #79a4f7;
+  box-shadow: 0 0 0 3px #3478f61c;
+}
+
+/* Live coordinate readout while a waypoint is dragged on the globe. */
+#cesiumDragTip {
+  position: absolute;
+  z-index: 4;
+  padding: 5px 8px 6px;
+  border-radius: 7px;
+  background: rgba(16, 21, 28, 0.93);
+  color: #f2f6fb;
+  font: 600 11px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translate(-50%, -150%);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+#cesiumDragTip small {
+  display: block;
+  margin-bottom: 1px;
+  color: #9fb0c4;
+  font: 600 9px/1.3 Roboto, Arial, sans-serif;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* The globe is a native 3D surface; keep its cursor explicit for each tool. */
+body.globe-engine #mapWrap[data-active-tool="point"] #cesiumMap canvas,
+body.globe-engine #mapWrap[data-active-tool="line"] #cesiumMap canvas,
+body.globe-engine #mapWrap[data-active-tool="select"] #cesiumMap canvas { cursor: crosshair; }
+body.globe-engine .map-status { border-top-color: #2a3444; }

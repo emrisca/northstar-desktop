@@ -1,0 +1,13 @@
+{
+  "name": "northstar-desktop",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Northstar Field CAD as a desktop app. The front end is plain HTML, CSS and JavaScript with no bundler; this file exists so the Tauri CLI has a home.",
+  "scripts": {
+    "dev": "tauri dev",
+    "build": "tauri build"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.9.0"
+  }
+}

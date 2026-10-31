@@ -1,0 +1,11 @@
+# Rust build output
+src-tauri/target/
+
+# Written by tauri-build on every compile
+src-tauri/gen/schemas/
+
+# Installed for the Tauri CLI only
+node_modules/
+
+# macOS folder metadata
+.DS_Store
