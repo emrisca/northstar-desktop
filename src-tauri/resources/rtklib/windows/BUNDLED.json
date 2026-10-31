@@ -1,0 +1,12 @@
+{
+  "version": "2.4.3 b34",
+  "releaseTag": "v2.4.3-b34",
+  "license": "BSD 2-Clause",
+  "platform": "windows",
+  "bundledAt": "2026-10-31T19:16:59Z",
+  "files": {
+    "convbin.exe": "3bb020ce0eda6000778c52c307dbe0cc018659525418743b58d5cb646af6a61a",
+    "rnx2rtkp.exe": "14c33c89777a54a1a5a064918307369acd149a40db7c29fdc199725283b1d5de",
+    "LICENSE.txt": "c8ae2fbe280c14e086af52920797a3d53f42631f41cfe73048fd481e5b05db09"
+  }
+}

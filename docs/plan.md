@@ -115,7 +115,7 @@ Not exercised. The Convert card and the post-processing dialog with a real click
 
 The recovery installer's own arc found a defect the unit tests could not: it downloaded the pinned archive, matched its SHA-256, and then refused the extraction with "The RTKLIB archive contained an unsafe path". The containment check canonicalised the destination while comparing it against a lexically joined member path, and on macOS the temporary folder sits behind the `/var` to `/private/var` symlink, so every member looked like it escaped. The check is now lexical (reject an absolute name, a drive prefix or any `..` component) and a test extracts through a symlinked destination, which is the shape of the real failure. After that fix the opt-in installer test downloads, verifies, places both binaries and writes a record the readiness check accepts, in 21 seconds.
 
-Still open from this batch: a Windows and a Linux bundle. The script produces either one on that platform, and the recovery installer covers a build that has neither, but only the macOS folder is committed so far.
+The Windows bundle is committed too: the two console tools from the same official archive, with the BSD licence and their hashes, so a Windows build needs no compiler. `scripts/build-windows.ps1` checks the MSVC prerequisites, runs the tests and produces the release executable. Still open: a Linux bundle, and a Windows build driven end to end on a Windows machine.
 
 ## Batch 5. The native shell
 

@@ -9,23 +9,45 @@
 # (`BUNDLED.json`: version, platform, and a SHA-256 per file).
 #
 # Usage:
-#   scripts/bundle-rtklib.sh [folder holding bin/rnx2rtkp]
+#   scripts/bundle-rtklib.sh [--platform macos|windows|linux] [folder holding bin/rnx2rtkp]
 #
 # The folder is `<project>/tools/rtklib` in the web build, or any RTKLIB 2.4.3
 # b34 build. Building the same version from the pinned archive is what
 # `npm run tauri build` would otherwise do on every machine, which is the thing
-# this script exists to avoid. Run it once per platform, on that platform,
-# because the binaries are native.
+# this script exists to avoid. Without --platform the host decides; pass it when
+# the folder already holds another platform's native binaries, such as the
+# official Windows archive unpacked on a Mac.
 set -eu
 
 REPO=$(cd "$(dirname "$0")/.." && pwd)
+PLATFORM=
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --platform)
+      if [ $# -lt 2 ]; then
+        echo "--platform needs a value: macos, windows or linux." >&2
+        exit 1
+      fi
+      PLATFORM=$2
+      shift 2
+      ;;
+    --platform=*) PLATFORM=${1#*=}; shift ;;
+    *) break ;;
+  esac
+done
 SOURCE=${1:-"$REPO/../northstar/tools/rtklib"}
 
-case "$(uname -s)" in
-  Darwin) PLATFORM=macos ;;
-  MINGW*|MSYS*|CYGWIN*) PLATFORM=windows ;;
-  Linux) PLATFORM=linux ;;
-  *) echo "This platform is not supported: $(uname -s)" >&2; exit 1 ;;
+if [ -z "$PLATFORM" ]; then
+  case "$(uname -s)" in
+    Darwin) PLATFORM=macos ;;
+    MINGW*|MSYS*|CYGWIN*) PLATFORM=windows ;;
+    Linux) PLATFORM=linux ;;
+    *) echo "This platform is not supported: $(uname -s)" >&2; exit 1 ;;
+  esac
+fi
+case "$PLATFORM" in
+  macos|windows|linux) ;;
+  *) echo "Unknown platform: $PLATFORM (expected macos, windows or linux)." >&2; exit 1 ;;
 esac
 
 VERSION="2.4.3 b34"
@@ -36,8 +58,13 @@ if [ -f "$SOURCE/INSTALLED.json" ]; then
   fi
 fi
 
-if [ ! -x "$SOURCE/bin/rnx2rtkp" ] && [ ! -f "$SOURCE/bin/rnx2rtkp.exe" ]; then
-  echo "No RTKLIB build at $SOURCE (expected bin/rnx2rtkp)." >&2
+if [ "$PLATFORM" = windows ]; then
+  if [ ! -f "$SOURCE/bin/rnx2rtkp.exe" ] || [ ! -f "$SOURCE/bin/convbin.exe" ]; then
+    echo "No Windows RTKLIB build at $SOURCE (expected bin/rnx2rtkp.exe and bin/convbin.exe)." >&2
+    exit 1
+  fi
+elif [ ! -x "$SOURCE/bin/rnx2rtkp" ] || [ ! -x "$SOURCE/bin/convbin" ]; then
+  echo "No RTKLIB build at $SOURCE (expected executable bin/rnx2rtkp and bin/convbin)." >&2
   echo "Pass the folder that holds it, for example:" >&2
   echo "  scripts/bundle-rtklib.sh ../northstar/tools/rtklib" >&2
   exit 1
@@ -52,7 +79,7 @@ rm -rf "$DEST"
 mkdir -p "$DEST/bin"
 
 if [ "$PLATFORM" = windows ]; then
-  cp "$SOURCE"/bin/*.exe "$DEST/bin/"
+  cp "$SOURCE/bin/rnx2rtkp.exe" "$SOURCE/bin/convbin.exe" "$DEST/bin/"
   for dll in "$SOURCE"/bin/*.dll; do
     [ -f "$dll" ] && cp "$dll" "$DEST/bin/"
   done

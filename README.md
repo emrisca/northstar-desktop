@@ -11,13 +11,36 @@ Status: **batch 4**. The window opens on the current interface, the map, waypoin
 You need Node 20 or newer for the Tauri CLI, and a Rust toolchain (stable) for the shell.
 
 ```sh
-npm install
+npm ci
 npm run dev
 ```
 
 `npm run dev` compiles the shell and opens the window. The first build downloads the Rust dependencies and takes a few minutes. Later builds are seconds.
 
 `npm run build` produces a release binary. Bundling is off until batch 7, which adds icons, signing and the installer.
+
+### Windows
+
+Windows needs the MSVC Rust host and the Visual Studio C++ tools; the WebView2 runtime is already part of Windows 10 and 11.
+
+1. Install Node 20 or newer.
+2. Install Rust from <https://rustup.rs/> and keep the default `x86_64-pc-windows-msvc` host.
+3. Install **Visual Studio Build Tools 2022** and tick **Desktop development with C++**, which supplies `link.exe`, the MSVC libraries and the Windows SDK.
+
+Then, from PowerShell in this folder:
+
+```powershell
+npm ci
+npm run dev
+```
+
+For a release build, run the script. It checks those prerequisites, runs the Rust tests, and leaves the executable at `src-tauri\target\release\northstar.exe`:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\build-windows.ps1
+```
+
+`-SkipTests` skips the Rust suite. Bundling is still off until batch 7, so this produces the portable executable, not an installer. The Windows RTKLIB bundle is committed in `src-tauri/resources/rtklib/windows`, so conversion and correction need neither a compiler nor an RTKLIB install.
 
 ## How it is put together
 
@@ -48,6 +71,8 @@ One project is one file, `<name>.northstar.json`, in the app's data folder:
 ~/Library/Application Support/com.emrisca.northstar/settings.json
 ```
 
+Windows uses the same two files under `%APPDATA%\com.emrisca.northstar\`.
+
 The Project menu offers Open project (a native file dialog), Recent projects (the list, which is also what a first launch shows), New project, Save now and Save a copy. A project dragged onto the window opens in the window that is already running, and so does a second launch that names a file. Saving happens on its own 400 ms after the last change, and the dot beside the project name says whether the file is current.
 
 The project file keeps the shape the web build exports, plus a `version`. A file without one is version 1 and is migrated on read, so a project exported from the web build opens here, and a project saved here opens there.
@@ -56,12 +81,18 @@ The project file keeps the shape the web build exports, plus a `version`. A file
 
 Converting a receiver log and running a correction are the two things that used to need an install. The web build downloaded RTKLIB 2.4.3 b34 and built it from source, which needed `make` and a C compiler on the machine. This build carries the tools instead: `src-tauri/resources/rtklib/<platform>/bin` holds `rnx2rtkp` and `convbin` for the platform it was built for, with the BSD licence and a `BUNDLED.json` recording the version and a SHA-256 per file, and `tauri.conf.json` copies that folder into the app's resources.
 
-The engine lookup reads the bundle first, then a copy the installer placed in the data folder, then `PATH`, then the folders the web build searched, so an existing install keeps working.
+The engine lookup reads the bundle first, then a copy the installer placed in the data folder, then `PATH`, then the folders the web build searched, so an existing install keeps working. The macOS and Windows bundles are committed; the Windows folder carries the two console tools and the licence, not RTKLIB's GUI programs. Linux is still open.
 
-Refreshing the bundle is one command, run on the platform whose binaries are wanted:
+Refreshing the bundle is one command. Run it on the platform whose binaries are wanted:
 
 ```sh
 scripts/bundle-rtklib.sh ../northstar/tools/rtklib
+```
+
+When the folder holds another platform's native binaries — the official Windows archive unpacked on a Mac, for example — name the platform:
+
+```sh
+scripts/bundle-rtklib.sh --platform windows /path/to/RTKLIB_2.4.3_b34
 ```
 
 The installer the post-processing card offers stays as the recovery path for a build whose bundle is empty: it downloads the one pinned official archive, verifies its SHA-256, and writes only inside the app's data folder. Nothing is installed system-wide and no administrator password is requested.
