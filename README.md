@@ -4,7 +4,7 @@ Northstar is a field survey tool: waypoints on a map, property boundaries, dista
 
 This repository is the desktop build. It is the same interface in a native window, with the Python server replaced by Rust commands, so there is no terminal to start, no localhost, and no Python on the machine.
 
-Status: **batch 1**. The window opens on the current interface, the map, waypoint, line and measurement code all work, and nothing loads from a content delivery network. Every script, stylesheet, font and Cesium asset is in `src/vendor` and served from disk, under a content security policy that names only the map tile services. The nine endpoints that used to come from `serve.py` answer with a message until their batch lands. [docs/plan.md](docs/plan.md) tracks each batch.
+Status: **batch 2**. The window opens on the current interface, the map, waypoint, line and measurement code all work, nothing loads from a content delivery network, and a project is now a file on disk instead of a webview's storage. The nine endpoints that used to come from `serve.py` answer with a message until their batch lands. [docs/plan.md](docs/plan.md) tracks each batch.
 
 ## Run it
 
@@ -26,8 +26,23 @@ src/               the interface: plain HTML, CSS and JavaScript, no bundler
   native.js        the bridge between the interface and the Rust shell
   vendor/          the seven libraries, Cesium and the fonts, with versions and hashes recorded
 src-tauri/         the window, the Rust commands, and the Tauri configuration
+src-tauri/src/store.rs   the project and settings files
+src-tauri/src/lib.rs     the window, the commands and the boot payload
 docs/              the inventory, the port analysis and the batch plan
 ```
+
+## Where projects live
+
+One project is one file, `<name>.northstar.json`, in the app's data folder:
+
+```text
+~/Library/Application Support/com.emrisca.northstar/projects/
+~/Library/Application Support/com.emrisca.northstar/settings.json
+```
+
+The Project menu offers Open project (a native file dialog), Recent projects (the list, which is also what a first launch shows), New project, Save now and Save a copy. A project dragged onto the window opens in the window that is already running, and so does a second launch that names a file. Saving happens on its own 400 ms after the last change, and the dot beside the project name says whether the file is current.
+
+The project file keeps the shape the web build exports, plus a `version`. A file without one is version 1 and is migrated on read, so a project exported from the web build opens here, and a project saved here opens there.
 
 ## Offline
 

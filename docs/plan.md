@@ -2,7 +2,7 @@
 
 Northstar runs in a browser today, served by a Python script. This plan turns it into a desktop app without rewriting the interface, and splits the work so each batch can be built, tested and pushed on its own.
 
-State: batches 0 and 1 done, batch 2 next.
+State: batches 0, 1 and 2 done. Batch 3 next.
 
 ## How a batch finishes
 
@@ -43,16 +43,22 @@ Two notes for later batches. Cesium and MapLibre both build workers from blob UR
 
 ## Batch 2. Projects as files
 
-Goal. A project is a file the person can find, back up and hand to someone else.
+Delivered.
 
-- One `.northstar.json` per project under the app data folder, written to a temporary file and renamed into place.
-- Autosave on change, a recent list on the welcome screen, open, save, and save as through native dialogs.
-- Drag a project file onto the window, and open a second instance's file in the running window.
-- A one-time import of the old `localStorage` project, reported to the person, leaving the browser copy in place.
-- Settings, dock sizes and calculator state move to a settings file beside the projects.
-- A version field in the project file with a migration path.
+- `src-tauri/src/store.rs` holds the file half: one `projects/<name>.northstar.json` per project under the app's data folder, written to a temporary name in the same folder and renamed into place so a write that does not finish leaves the previous file intact. The folder is `~/Library/Application Support/com.emrisca.northstar` on macOS.
+- `src/native.js` is now the whole bridge. It seeds `localStorage` from an initialisation script the shell builds before the window loads, so the first paint is already the saved project, and then mirrors every `northstar-` write back to disk, coalescing to one write per 400 ms.
+- The Project menu gained Open project, Recent projects, New project, Save now and Save a copy. Opening a file goes through the interface's existing importer, so an opened project and an imported one take the same path.
+- Recent projects is the welcome screen: the shell opens the list on a launch that has no projects, and the Project menu opens it at any time.
+- Drag and drop and a second launch both end in the same place. The shell reads the path, then calls `window.northstarOpenPath` in the window it already has, so there is never a second store writing the same files.
+- The settings file holds whatever the interface keeps in `localStorage`: theme, units, dock sizes, calculator state, and the project that was last open. Rust stores the keys without interpreting them.
+- A project file now carries `version: 2` beside the web build's `format` marker. A file without a version is version 1, migration 1 to 2 adds the field and leaves every value alone, and a file from a newer version is refused rather than guessed at.
+- The batch 0 project, if this webview still has one, is written to a file on first launch and reported. The browser copy stays where it is.
 
-Check. A project survives a quit and a reopen, a killed process during a write leaves the previous file intact, and a project exported from the web build opens with no loss.
+Check. The twelve store tests cover the guarantees: a saved project reads back with every value the web build wrote, a file without a version migrates, a newer version is refused, a write that cannot finish leaves the previous file and no temporary file, an id cannot leave the projects folder, the recent list is newest first, a damaged project is skipped rather than failing the list, and a damaged settings file does not stop the app.
+
+In the shell, measured on 30 October 2026: a first launch created the data folder, the `projects/` folder and `settings.json` with the keys the interface touched, and showed the welcome list. A project placed in the folder with `lastProject` set was open in the window after a relaunch, with its two waypoints, its line and its saved map centre, and a green Saved dot beside its name.
+
+What this pass could not click: the native open and save dialogs, and a real edit in the native window. The write half was exercised through the same code path in a browser harness with the shell stubbed (rename a project, watch one coalesced `project_save` carry the new document), and the settings write was exercised in the real window. A project edit made with the mouse in the packaged app is still unproven.
 
 ## Batch 3. NOAA and the readiness check
 

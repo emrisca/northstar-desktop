@@ -66,7 +66,7 @@ These are the invariants a reviewer should check on every batch.
 
 The webview is not a browser. Four consequences are worth knowing before batch 1.
 
-Content security policy. The globe and the map styles fetch from tile hosts, Cesium assets and terrain endpoints. The configuration currently sets no policy, which keeps development simple and is not acceptable for release; batch 5 or 7 writes the host list the basemaps actually use.
+Content security policy. Batch 1 replaced the empty policy with the host list the basemaps, imagery, terrain and parcel services use, and `scripts/csp-check-server.py` serves the interface with that policy as a header so a browser enforces it during a test.
 
 Asset embedding. `frontendDist` is read when the shell compiles, so an edit to `src/` needs another compile. That is fine for a port in seven batches and would be annoying for daily interface work, so a watcher or a tiny static server belongs in whichever batch first edits the interface for its own sake.
 
@@ -78,7 +78,9 @@ File paths. Everything in `src/` is loaded with a relative URL, so it works from
 
 Proved. The window opens on the moved interface, the shell compiles, and the five places that used to name the launcher or `serve.py` now name the desktop backend.
 
-Not proved. Nothing about the backend, because none of it exists yet. The nine endpoints answer 503. Rendered output in the native window has not been checked against the browser build because this machine has no way to capture a native window here; the interface itself was checked in a browser, which is the same HTML, CSS and JavaScript the shell loads.
+Not proved. Nothing about the endpoint backend, because none of it exists yet. The nine endpoints answer 503.
+
+Batch 2 added the project store, which is proved by the twelve tests in `src-tauri/src/store.rs` and by launching the shell: a project file with `lastProject` set opens in the window after a relaunch. The native open and save dialogs and an edit made with the mouse in the packaged app were not exercised.
 
 ## 7. Open questions
 
@@ -86,4 +88,4 @@ Whether the map tiles should be cached on disk by the shell rather than by the w
 
 Whether the interface should keep its script tag loading or move to modules with a bundler, which changes nothing for the user and a lot for the build.
 
-Where the settings file lives once projects can live anywhere, since the current design has one settings file for the app rather than one per project.
+Settled in batch 2: one settings file for the app, beside the projects folder, holding the interface's own keys and the project that was last open. A project opened from outside that folder keeps writing back to where it came from.

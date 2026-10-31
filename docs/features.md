@@ -140,7 +140,7 @@ Every behaviour in the web build, grouped by where the person meets it. The file
 - Every setting above, and the calculator's state. `app.js`, `calculator.js`
 - Saved GNSS jobs, up to twenty per project. `postprocess.js`
 
-In the web build all of this lives in `localStorage`. The desktop build moves the project to a file in batch 2 and imports the browser copy once.
+The web build keeps all of this in `localStorage`. The desktop build keeps the project in its own file and the rest in `settings.json` beside the projects, mirrors every change to them 400 ms after it happens, and writes a batch 0 browser copy to a file once on first launch without deleting it.
 
 ## 16. Window and keyboard
 

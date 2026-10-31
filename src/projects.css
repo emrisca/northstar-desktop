@@ -1,0 +1,179 @@
+/* The project chooser.
+ *
+ * One dialog serves two jobs: the recent list, and the welcome screen on a
+ * launch that has no projects yet. It is the only surface batch 2 adds, so it
+ * lives in its own file rather than at the end of styles.css. */
+
+html:not(.desktop-shell) [data-desktop-only] {
+  display: none;
+}
+
+/* Whether the file on disk is current. The dot is the fast read, the words
+   say what happened when it is not simply saved. */
+.project-save {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 8px;
+  white-space: nowrap;
+}
+
+.project-save small {
+  font: 500 10px/1 Roboto, sans-serif;
+  color: var(--muted);
+}
+
+.project-save-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--green);
+}
+
+.project-save-dot.unsaved {
+  background: #d99b2f;
+}
+
+html:not(.desktop-shell) .project-save {
+  display: none;
+}
+
+.projects-dialog {
+  width: 560px;
+  padding: 0;
+  overflow: hidden;
+}
+
+.projects-shell {
+  display: flex;
+  flex-direction: column;
+  max-height: min(70vh, 620px);
+}
+
+.projects-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 20px 20px 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.projects-head h2 {
+  margin: 5px 0 0;
+  font: 700 18px Roboto, sans-serif;
+  letter-spacing: -0.4px;
+}
+
+.projects-lede {
+  margin: 8px 0 0;
+  max-width: 44ch;
+  font: 500 11.5px/1.55 Roboto, sans-serif;
+  color: var(--soft);
+}
+
+.projects-lede b {
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.projects-list {
+  flex: 1;
+  min-height: 120px;
+  overflow: auto;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.projects-empty {
+  margin: 0;
+  padding: 26px 18px;
+  text-align: center;
+  font: 500 11.5px/1.6 Roboto, sans-serif;
+  color: var(--muted);
+}
+
+.project-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.project-row:hover {
+  background: var(--panel2);
+  border-color: var(--line);
+}
+
+.project-row[data-current='true'] {
+  background: var(--blue2);
+  border-color: transparent;
+}
+
+.project-row-icon {
+  font-size: 20px;
+  color: var(--blue);
+}
+
+.project-row-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.project-row-body b {
+  font: 600 13px/1.2 Roboto, sans-serif;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.project-row-body small {
+  font: 500 10.5px/1.2 Roboto, sans-serif;
+  color: var(--muted);
+}
+
+.projects-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--line);
+  background: var(--panel2);
+}
+
+.projects-foot .text-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  background: none;
+  padding: 6px 2px;
+  color: var(--soft);
+  font: 600 11px Roboto, sans-serif;
+  cursor: pointer;
+}
+
+.projects-foot .text-button:hover {
+  color: var(--ink);
+}
+
+.projects-foot .text-button .material-symbols {
+  font-size: 16px;
+}
+
+.projects-actions {
+  display: flex;
+  gap: 8px;
+}
