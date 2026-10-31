@@ -19,6 +19,10 @@ npm run dev
 
 `npm run build` produces the app bundle, its installer, and the signed updater artifact. The build needs the updater signing key; see [Updates](#updates).
 
+### Partition regression harness
+
+`npm run test:partition` serves `src/` on loopback and runs the real desktop interface in the installed Chrome through Playwright. It covers area split, equal parts, cut between two vertices, and drawn cut. For each method it accepts the partition, checks every preview area against the GeographicLib area of the accepted part, and then saves and checks the matching map tag. Chrome must be installed; no browser is downloaded by the harness.
+
 ### Windows
 
 Windows needs the MSVC Rust host and the Visual Studio C++ tools; the WebView2 runtime is already part of Windows 10 and 11.

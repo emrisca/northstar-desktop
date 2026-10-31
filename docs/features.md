@@ -40,6 +40,7 @@ Every behaviour in the web build, grouped by where the person meets it. The file
 - Units for area and length with memory across parcels, three significant digits for small values, up to two decimals for large ones. `app.js`
 - Invalid-shape detection for figure eights, self-touching outlines and repeated vertices, shown as Not valid, with partitioning refused. `app.js`
 - Saved measurements that follow later geometry edits, stored with the unit and the ground setting they were created with. `app.js`
+- Global outside tag placement in Settings: one checkbox moves side measurement tags outside their lines. Side tags stay horizontal, clear the boundary, and use a short leader back to the measurement instead of rotating; parcel area tags remain centered in the parcel. `app.js`
 
 ## 5. Ground values and terrain
 
@@ -56,6 +57,7 @@ Every behaviour in the web build, grouped by where the person meets it. The file
 - Equal parts from the drawn line, sliding cuts between the two crossed sides. `app.js`
 - Options for frontage side, cut angle, measurement origin, minimum area and minimum frontage, and whether failing parts are allowed. `app.js`
 - Auto fit, which tries every frontage course and, without square mode, every angle from 0 to 177 degrees in 3 degree steps then refines to a tenth, ranking by failing parts, worst shape, frontage spread and course length. `app.js`
+- Preview, accepted-part summaries, and map area tags use the same WGS 84 GeographicLib area basis, so a cut's displayed areas agree after acceptance. `app.js`, `geodesy.js`
 - Ground-valued targets and minimums with a label on accepted parts, and one undo step for the accepted result. `app.js`
 
 ## 7. Coordinates
