@@ -23,6 +23,10 @@
 
   var PROJECT_KEY = 'northstar-project';
   var PREFIX = 'northstar-';
+  // Whether the browser copy has already been written to a file. Without this,
+  // deleting a project would bring it back on the next launch from the copy the
+  // import deliberately left behind.
+  var IMPORTED_KEY = 'northstar-legacy-imported';
   var NOT_SETTINGS = { 'northstar-project': true, 'northstar-firms-map-key': true };
   var store = {
     id: null,
@@ -63,12 +67,22 @@
       store.projects = boot.projects || [];
       store.folder = boot.dataFolder || '';
     } else {
-      // No project file yet. Batch 0 kept one in this webview's localStorage,
-      // and that is the copy worth carrying over, once. It stays where it is
-      // so the window opens on it, and so the browser copy is never destroyed.
-      legacy = localStorage.getItem(PROJECT_KEY);
+      var imported =
+        String((boot.settings && boot.settings.keys && boot.settings.keys[IMPORTED_KEY]) || '') === '1';
       store.projects = boot.projects || [];
       store.folder = boot.dataFolder || '';
+      if (imported) {
+        // The file was the authority from the moment the import ran, so a copy
+        // left in the browser is history and must not become a project again.
+        try {
+          localStorage.removeItem(PROJECT_KEY);
+        } catch (error) {}
+      } else {
+        // No project file yet. Batch 0 kept one in this webview's localStorage,
+        // and that is the copy worth carrying over, once. It stays where it is
+        // so the window opens on it, and the browser copy is never destroyed.
+        legacy = localStorage.getItem(PROJECT_KEY);
+      }
     }
 
     var last = (boot.settings && boot.settings.lastProject) || null;
@@ -311,6 +325,13 @@
     if (dialog && dialog.open) dialog.close();
   }
 
+  function markImported() {
+    try {
+      localStorage.setItem(IMPORTED_KEY, '1');
+    } catch (error) {}
+    flushSettings();
+  }
+
   function when(entry) {
     if (!entry.modified) return '';
     var date = new Date(entry.modified);
@@ -431,11 +452,15 @@
         invoke('project_save', { document: document_ }).then(function (saved) {
           adopt(saved.entry);
           setStatus('Saved');
+          markImported();
           window.northstarApp && window.northstarApp.message('Saved the project this build kept in the browser');
         }).catch(function () {});
         return;
       }
     }
+    // Either there was nothing to carry over or the copy was unusable, and
+    // either way the import is spent.
+    markImported();
     flushSettings();
 
     if (!store.projects.length) {
@@ -450,19 +475,69 @@
     ready_();
   }
 
-  /* --------------------------------------------- the endpoints still to come */
+  /* ------------------------------------------------------- the old endpoints
+   *
+   * The interface still asks for these paths with fetch, because that is what
+   * the web build did. Each one now names the Rust command that answers it, and
+   * the query string is read the way serve.py read it. A command failure comes
+   * back as 502 with the message the card shows, which is the status and body
+   * the Python proxy used for the same failure.
+   */
 
-  var COMMANDS = {
-    '/api/preflight': { command: 'preflight', batch: 3 },
-    '/api/noaa/nearby': { command: 'noaa_nearby', batch: 3 },
-    '/api/noaa/station': { command: 'noaa_station', batch: 3 },
-    '/api/noaa/base': { command: 'noaa_base', batch: 3 },
+  var ROUTES = {
+    '/api/preflight': function (query) {
+      var flag = (query.get('noaa') || '1').toLowerCase();
+      return invoke('preflight', { noaa: ['0', 'false', 'no'].indexOf(flag) < 0 });
+    },
+    '/api/noaa/nearby': function (query) {
+      var lat = query.get('lat');
+      var lon = query.get('lon');
+      var height = query.get('height') || '0';
+      if (!lat || !lon || !isFinite(Number(lat)) || !isFinite(Number(lon))) {
+        return Promise.reject('Latitude and longitude are required numbers.');
+      }
+      return invoke('noaa_nearby', {
+        lat: Number(lat),
+        lon: Number(lon),
+        height: Number(height) || 0
+      });
+    },
+    '/api/noaa/station': function (query) {
+      return invoke('noaa_station', { id: query.get('id') || '' });
+    },
+    '/api/noaa/base': function (query) {
+      var hours = Number(query.get('hours') || 1);
+      var interval = Number(query.get('interval') || 30);
+      if (!Number.isInteger(hours) || hours < 1 || hours > 24) {
+        return Promise.reject('Hours must be between 1 and 24.');
+      }
+      if (!Number.isInteger(interval) || [1, 5, 15, 30].indexOf(interval) < 0) {
+        return Promise.reject('Interval must be 1, 5, 15 or 30 seconds.');
+      }
+      return invoke('noaa_base', {
+        station: query.get('station') || '',
+        date: query.get('date') || '',
+        start: query.get('start') || '00:00',
+        hours: hours,
+        interval: interval
+      });
+    }
+  };
+
+  var PENDING = {
     '/api/rtklib/install/info': { command: 'rtklib_install_info', batch: 4 },
     '/api/rtklib/install/status': { command: 'rtklib_install_status', batch: 4 },
     '/api/rtklib/install': { command: 'rtklib_install', batch: 4 },
     '/api/rtklib/convert': { command: 'rtklib_convert', batch: 4 },
     '/api/rtklib/run': { command: 'rtklib_run', batch: 4 }
   };
+
+  function json(status, body) {
+    return new Response(JSON.stringify(body), {
+      status: status,
+      headers: { 'Content-Type': 'application/json; charset=utf-8' }
+    });
+  }
 
   var realFetch = window.fetch.bind(window);
 
@@ -472,20 +547,28 @@
       return realFetch(input, init);
     }
 
-    var path = url.split('?')[0];
-    var entry = COMMANDS[path] || { command: 'none', batch: 0 };
-    var body = {
-      ok: false,
-      error: 'The desktop backend does not answer yet.',
-      endpoint: path,
-      command: entry.command,
-      batch: entry.batch
-    };
+    var split = url.split('?');
+    var path = split[0];
+    var query = new URLSearchParams(split[1] || '');
+    if (ROUTES[path]) {
+      return ROUTES[path](query).then(
+        function (body) {
+          return json(200, body);
+        },
+        function (error) {
+          return json(502, { ok: false, error: String(error) });
+        }
+      );
+    }
 
+    var entry = PENDING[path] || { command: 'none', batch: 0 };
     return Promise.resolve(
-      new Response(JSON.stringify(body), {
-        status: 503,
-        headers: { 'Content-Type': 'application/json' }
+      json(503, {
+        ok: false,
+        error: 'The desktop backend does not answer yet.',
+        endpoint: path,
+        command: entry.command,
+        batch: entry.batch
       })
     );
   };

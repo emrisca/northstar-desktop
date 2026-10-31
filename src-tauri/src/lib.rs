@@ -10,6 +10,8 @@
 //! replace `serve.py` arrive in batches 3 and 4 and are listed in
 //! `src/native.js`.
 
+mod noaa;
+mod preflight;
 mod store;
 
 use serde::Serialize;
@@ -27,6 +29,9 @@ struct Open {
 
 struct Files {
     store: Store,
+    /// Where a bundled RTKLIB build lives. Resolved once, when the window is
+    /// built, so no command has to ask the app for it.
+    tools: PathBuf,
     open: Mutex<Open>,
 }
 
@@ -254,6 +259,49 @@ fn settings_save(app: tauri::State<Files>, document: Value) -> Result<Value, Str
         .map_err(|error| error.to_string())
 }
 
+/// The readiness report the post-processing card shows. The blocking work runs
+/// off the command thread so the window keeps painting while NOAA is asked.
+#[tauri::command]
+async fn preflight(app: tauri::State<'_, Files>, noaa: Option<bool>) -> Result<Value, String> {
+    let data = app.store.root().to_path_buf();
+    let tools = app.tools.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        preflight::system_report(&tools, &data, noaa.unwrap_or(true))
+    })
+    .await
+    .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+async fn noaa_nearby(lat: f64, lon: f64, height: Option<f64>) -> Result<Value, String> {
+    tauri::async_runtime::spawn_blocking(move || noaa::nearby(lat, lon, height.unwrap_or(0.0)))
+        .await
+        .map_err(|error| error.to_string())?
+}
+
+#[tauri::command]
+async fn noaa_station(id: String) -> Result<Value, String> {
+    tauri::async_runtime::spawn_blocking(move || noaa::station(&id))
+        .await
+        .map_err(|error| error.to_string())?
+}
+
+#[tauri::command]
+async fn noaa_base(
+    station: String,
+    date: String,
+    start: Option<String>,
+    hours: Option<i64>,
+    interval: Option<i64>,
+) -> Result<Value, String> {
+    let start = start.unwrap_or_else(|| "00:00".to_string());
+    let hours = hours.unwrap_or(1);
+    let interval = interval.unwrap_or(30);
+    tauri::async_runtime::spawn_blocking(move || noaa::base(&station, &date, &start, hours, interval))
+        .await
+        .map_err(|error| error.to_string())?
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let mut builder = tauri::Builder::default();
@@ -307,8 +355,13 @@ pub fn run() {
                 }
             });
 
+            let tools = app
+                .path()
+                .resource_dir()
+                .unwrap_or_else(|_| store.root().to_path_buf());
             app.manage(Files {
                 store,
+                tools,
                 open: Mutex::new(Open { path: None }),
             });
             Ok(())
@@ -324,8 +377,113 @@ pub fn run() {
             project_reveal,
             project_folder,
             project_forget,
-            settings_save
+            settings_save,
+            preflight,
+            noaa_nearby,
+            noaa_station,
+            noaa_base
         ])
         .run(tauri::generate_context!())
         .expect("the Northstar window failed to start");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tauri::ipc::{CallbackFn, InvokeBody};
+    use tauri::test::{get_ipc_response, mock_builder, mock_context, noop_assets, MockRuntime};
+    use tauri::webview::InvokeRequest;
+
+    /// A window over a throwaway data folder, with the commands registered the
+    /// way the real builder registers them. This is the seam a browser harness
+    /// cannot reach: the command names and the argument names the bridge sends.
+    fn shell(name: &str) -> tauri::WebviewWindow<MockRuntime> {
+        let root = std::env::temp_dir().join(format!(
+            "northstar-ipc-{name}-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&root);
+        let store = Store::open(root).unwrap();
+        let app = mock_builder()
+            .manage(Files {
+                store,
+                tools: std::env::temp_dir(),
+                open: Mutex::new(Open { path: None }),
+            })
+            .invoke_handler(tauri::generate_handler![
+                preflight, noaa_nearby, noaa_station, noaa_base
+            ])
+            .build(mock_context(noop_assets()))
+            .unwrap();
+        tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap()
+    }
+
+    fn call(
+        window: &tauri::WebviewWindow<MockRuntime>,
+        command: &str,
+        args: Value,
+    ) -> Result<Value, Value> {
+        get_ipc_response(
+            window,
+            InvokeRequest {
+                cmd: command.to_string(),
+                callback: CallbackFn(0),
+                error: CallbackFn(1),
+                url: "tauri://localhost".parse().unwrap(),
+                body: InvokeBody::Json(args),
+                headers: Default::default(),
+                invoke_key: tauri::test::INVOKE_KEY.to_string(),
+            },
+        )
+        .map(|body| body.deserialize::<Value>().unwrap())
+        .map_err(|error| error)
+    }
+
+    #[test]
+    fn the_readiness_check_answers_with_the_shape_the_card_reads() {
+        let window = shell("preflight");
+        let report = call(&window, "preflight", json!({ "noaa": false })).unwrap();
+        assert!(report.get("rtklib").is_some(), "{report}");
+        assert_eq!(report["noaa"]["skipped"], json!(true));
+        assert!(report.get("python").is_none());
+    }
+
+    #[test]
+    fn the_noaa_commands_take_the_argument_names_the_bridge_sends() {
+        let window = shell("noaa");
+
+        // Each of these is refused before a request leaves, so the test needs no
+        // network and still proves the argument names arrive.
+        let error = call(&window, "noaa_nearby", json!({ "lat": 200.0, "lon": 0.0 }))
+            .unwrap_err();
+        assert_eq!(
+            error.as_str().unwrap(),
+            "Latitude or longitude is outside its valid range."
+        );
+
+        let error = call(&window, "noaa_station", json!({ "id": "12" })).unwrap_err();
+        assert_eq!(
+            error.as_str().unwrap(),
+            "Station ID must be four letters or digits."
+        );
+
+        let error = call(
+            &window,
+            "noaa_base",
+            json!({
+                "station": "1LSU",
+                "date": "2026-10-29",
+                "start": "09:00",
+                "hours": 1,
+                "interval": 10
+            }),
+        )
+        .unwrap_err();
+        assert_eq!(
+            error.as_str().unwrap(),
+            "Interval must be 1, 5, 15 or 30 seconds."
+        );
+    }
 }

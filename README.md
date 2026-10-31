@@ -4,7 +4,7 @@ Northstar is a field survey tool: waypoints on a map, property boundaries, dista
 
 This repository is the desktop build. It is the same interface in a native window, with the Python server replaced by Rust commands, so there is no terminal to start, no localhost, and no Python on the machine.
 
-Status: **batch 2**. The window opens on the current interface, the map, waypoint, line and measurement code all work, nothing loads from a content delivery network, and a project is now a file on disk instead of a webview's storage. The nine endpoints that used to come from `serve.py` answer with a message until their batch lands. [docs/plan.md](docs/plan.md) tracks each batch.
+Status: **batch 3**. The window opens on the current interface, the map, waypoint, line and measurement code all work, nothing loads from a content delivery network, a project is a file on disk instead of a webview's storage, and the NOAA station search and base download plus the readiness check answer from Rust. The five RTKLIB endpoints still answer with a message until batch 4. [docs/plan.md](docs/plan.md) tracks each batch.
 
 ## Run it
 
@@ -27,6 +27,8 @@ src/               the interface: plain HTML, CSS and JavaScript, no bundler
   vendor/          the seven libraries, Cesium and the fonts, with versions and hashes recorded
 src-tauri/         the window, the Rust commands, and the Tauri configuration
 src-tauri/src/store.rs   the project and settings files
+src-tauri/src/noaa.rs    the NGS station search, station metadata and UFCORS base download
+src-tauri/src/preflight.rs   the readiness report
 src-tauri/src/lib.rs     the window, the commands and the boot payload
 docs/              the inventory, the port analysis and the batch plan
 ```

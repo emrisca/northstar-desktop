@@ -20,9 +20,9 @@ In the desktop build Tauri serves the files, so job one disappears. Jobs two to 
 | `POST /api/rtklib/convert` | `rtklib_convert` | 4 |
 | `POST /api/rtklib/run` | `rtklib_run` | 4 |
 
-Until a command exists, the endpoint answers 503 with a body naming the command and the batch that replaces it. `src/native.js` holds that table, and each entry is deleted as its command lands.
+Batches 1 to 3 replaced the first five rows: `src/native.js` answers `/api/preflight` and the three `/api/noaa/...` paths from the commands and reports a failed command as 502 with the Python proxy's body. The five RTKLIB rows still answer 503 with a body naming the command and the batch that replaces them, and each entry is deleted as its command lands.
 
-The NOAA work is worth stating plainly, because it is the reason the backend exists at all. NOAA's services do not send browser-readable cross-origin headers, so the web build asked its own server to make the requests. A Tauri command has no origin and therefore no such limit, so batch 3 keeps the same three fixed URLs and drops the proxy hop. The consequence is that the request no longer leaves from a browser at all, which matters for how NOAA sees the traffic.
+The NOAA work is worth stating plainly, because it is the reason the backend exists at all. NOAA's services do not send browser-readable cross-origin headers, so the web build asked its own server to make the requests. A Tauri command has no origin and therefore no such limit, so batch 3 keeps the same three fixed URLs and drops the proxy hop. The consequence is that the request no longer leaves from a browser at all, which matters for how NOAA sees the traffic: the user agent is still `Northstar-Field-CAD/1.0 (local GNSS workflow)`, and each request comes from the machine itself.
 
 ## 2. What the browser gave the app, and what replaces it
 

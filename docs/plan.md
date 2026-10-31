@@ -2,7 +2,7 @@
 
 Northstar runs in a browser today, served by a Python script. This plan turns it into a desktop app without rewriting the interface, and splits the work so each batch can be built, tested and pushed on its own.
 
-State: batches 0, 1 and 2 done. Batch 3 next.
+State: batches 0 to 3 done. Batch 4 next.
 
 ## How a batch finishes
 
@@ -62,12 +62,29 @@ What this pass could not click: the native open and save dialogs, and a real edi
 
 ## Batch 3. NOAA and the readiness check
 
-Goal. The four endpoints that talk to the outside world answer again, this time from Rust.
+Delivered.
 
-- `preflight` with the same report shape as `serve.py`: Python no longer applies, so the check reports the tools, the app files and the NOAA reachability only.
-- `noaa_nearby`, `noaa_station` and `noaa_base` against the same three fixed URLs, with the same station ordering, window selection, frame handling and ITRF velocity propagation.
+- `src-tauri/src/noaa.rs` makes the three requests `serve.py` used to relay: the same two NGS endpoints and the UFCORS form endpoint, called directly instead of through a local server, because a command has no origin to violate. It keeps `serve.py`'s choices: the WGS 84 to ECEF projection, four decimal places in the query, the four character station id, the UFCORS field order and form encoding, the archive member patterns with `re.IGNORECASE`, the 30 MB cap, the 35 second timeout, and the wording of every error.
+- `src-tauri/src/preflight.rs` builds the readiness report. It keeps the shape the card reads and drops the `python` block, which no longer applies. `app` now covers the data folder's writability, because the interface is compiled into the binary and there are no loose files to miss. RTKLIB discovery looks in the bundle's resource folder, on `PATH`, and in the folders the web build searched, and it still ignores an `INSTALLED.json` that names another platform or a binary that is not there.
+- The four commands are `preflight`, `noaa_nearby`, `noaa_station` and `noaa_base`. Each runs its blocking work on a worker thread, so the window keeps painting while NOAA is asked.
+- `src/native.js` answers those four paths from the commands and keeps 503 for the five RTKLIB paths, which batch 4 replaces. A command failure comes back as 502 with `{ok: false, error}`, the status and body the Python proxy used for the same failure.
 
-Check. A search returns nine stations with real coordinates. A base window downloads and parses. The readiness card reports the same checks as the web build on the same rover file.
+Check. 30 tests pass, four of them live. The last one walks the whole chain the way the job builder does, for two rover files whose approximate positions come from their own headers:
+
+| Rover | Position | Session | Nearest station | Archive |
+| --- | --- | --- | --- | --- |
+| KINGS.obs | 36.0060 N, 120.1226 W | 2026-10-25 01:36 UTC | P283, 26.5 km | `p2832980.26o`, `p283_20.coord.txt`, `igr24420.sp3` |
+| HUD RANGERS.obs | 42.7776 N, 71.4025 W | 2022-03-18 13:30 UTC | ZBW1, 7.9 km | `zbw10770.22o`, `zbw1_20.coord.txt`, `igs22015.sp3` |
+
+Each search returns nine stations, the nearest is within 30 km, and its archive for the session hour comes back with an observation file, a coordinate file carrying the ITRF and NAD83 frames, and an orbit file.
+
+Two of the 30 go through Tauri's own invoke path on the mock runtime, so the command names and the argument names the bridge sends are exercised rather than assumed. They use arguments that are refused before a request leaves, which keeps them off the network.
+
+The other live tests cover the search for a fixed California position and the metadata behind it (38.4735 N, 121.6464 W for P268), and a base window from three days back.
+
+Driven in a browser with the shell stubbed, the shim mapped `/api/preflight?noaa=0` to `{ noaa: false }`, the search to the three axis arguments, the base window to `station`, `date`, `start`, `hours` and `interval`, and turned each refusal into a 502 with the same sentence the Python proxy sent.
+
+Not exercised. The readiness card in the packaged window, which needs the post-processing dialog opened and its check button pressed. The report shape and the NOAA calls behind it are covered by the tests above, but the card rendering the result with a rover file attached was not clicked through.
 
 ## Batch 4. RTKLIB
 
