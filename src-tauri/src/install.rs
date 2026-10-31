@@ -925,10 +925,8 @@ mod tests {
         assert_eq!(info["version"], json!(rtklib::VERSION));
         assert_eq!(info["asset"]["sha256"], json!(rtklib::ASSET_SHA256));
         assert_eq!(info["adminRequired"], json!(false));
-        assert!(info["installPath"]
-            .as_str()
-            .unwrap()
-            .ends_with("tools/rtklib/bin"));
+        assert!(std::path::Path::new(info["installPath"].as_str().unwrap())
+            .ends_with(std::path::Path::new("tools").join("rtklib").join("bin")));
         let _ = std::fs::remove_dir_all(&root);
     }
 
