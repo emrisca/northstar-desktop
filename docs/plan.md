@@ -148,6 +148,8 @@ Goal. An install someone else can run.
 - One command that runs the test suites.
 - The README rewritten for the desktop app, with the web build pointed at as the older option.
 
+Status. The app-side updater and the tag-driven release workflow are in place. macOS is not yet notarised and Windows is not yet Authenticode-signed, so those warnings remain.
+
 Check. A build from a clean clone installs and runs on a machine that has never had Python.
 
 ## Rules that hold across every batch

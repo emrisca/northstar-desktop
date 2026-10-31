@@ -633,4 +633,18 @@
       refusal
     );
   };
+
+  /* The updater is Rust-side because the interface has no bundler. The window
+   * polls `state` for progress instead of listening to a plugin event. */
+  window.northstarUpdate = {
+    state: function () {
+      return invoke('update_state');
+    },
+    check: function () {
+      return invoke('update_check');
+    },
+    install: function () {
+      return invoke('update_install');
+    }
+  };
 })();

@@ -4,7 +4,7 @@ Northstar is a field survey tool: waypoints on a map, property boundaries, dista
 
 This repository is the desktop build. It is the same interface in a native window, with the Python server replaced by Rust commands, so there is no terminal to start, no localhost, and no Python on the machine.
 
-Status: **batch 4**. The window opens on the current interface, the map, waypoint, line and measurement code all work, nothing loads from a content delivery network, a project is a file on disk instead of a webview's storage, and all nine endpoints that used to come from `serve.py` answer from Rust. RTKLIB ships inside the build, so converting a raw log and running a correction need neither Python nor a compiler. [docs/plan.md](docs/plan.md) tracks each batch.
+Status: **batch 7, in progress**. The window opens on the current interface, the map, waypoint, line and measurement code all work, nothing loads from a content delivery network, a project is a file on disk instead of a webview's storage, and all nine endpoints that used to come from `serve.py` answer from Rust. RTKLIB ships inside the build, so converting a raw log and running a correction need neither Python nor a compiler. Packaging and one-button updates are in place; macOS notarisation, Windows Authenticode and the crash-log location are still open. [docs/plan.md](docs/plan.md) tracks each batch.
 
 ## Run it
 
@@ -17,7 +17,7 @@ npm run dev
 
 `npm run dev` compiles the shell and opens the window. The first build downloads the Rust dependencies and takes a few minutes. Later builds are seconds.
 
-`npm run build` produces a release binary. Bundling is off until batch 7, which adds icons, signing and the installer.
+`npm run build` produces the app bundle, its installer, and the signed updater artifact. The build needs the updater signing key; see [Updates](#updates).
 
 ### Windows
 
@@ -40,7 +40,21 @@ For a release build, run the script. It checks those prerequisites, runs the Rus
 powershell -ExecutionPolicy Bypass -File scripts\build-windows.ps1
 ```
 
-`-SkipTests` skips the Rust suite. Bundling is still off until batch 7, so this produces the portable executable, not an installer. The Windows RTKLIB bundle is committed in `src-tauri/resources/rtklib/windows`, so conversion and correction need neither a compiler nor an RTKLIB install.
+`-SkipTests` skips the Rust suite. The script produces the portable executable; `npm run build` also produces the NSIS installer and the updater artifact. The Windows RTKLIB bundle is committed in `src-tauri/resources/rtklib/windows`, so conversion and correction need neither a compiler nor an RTKLIB install.
+
+## Updates
+
+Northstar checks `https://github.com/emrisca/northstar-desktop/releases/latest/download/latest.json` about ten seconds after launch, every six hours while open, and whenever **Check for updates** is pressed in Settings. When a newer version is waiting, a pill appears in the top bar; it opens one dialog with the version and notes. **Update now** downloads, verifies the minisign signature, installs and restarts. Nothing installs without that click, and a failed check is silent.
+
+The public key in `src-tauri/tauri.conf.json` belongs to the signing key. The private key is not in this repository: on this machine it is under `.secrets/`, which Git ignores. Move it to a password manager, and set these two variables for a release build:
+
+```sh
+TAURI_SIGNING_PRIVATE_KEY=/path/to/northstar-updater.key
+TAURI_SIGNING_PRIVATE_KEY_PASSWORD=the-key-password
+npm run build
+```
+
+The same two values are the GitHub Actions secrets `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` for the release workflow. Pushing a tag such as `v0.1.1` builds macOS and Windows on hosted runners, publishes the installers, and writes `latest.json` beside them. The source repository is public, so the app reads that file without a token.
 
 ## How it is put together
 
@@ -50,6 +64,7 @@ src/               the interface: plain HTML, CSS and JavaScript, no bundler
   vendor/          the seven libraries, Cesium and the fonts, with versions and hashes recorded
 src-tauri/         the window, the Rust commands, and the Tauri configuration
 src-tauri/src/store.rs   the project and settings files
+src-tauri/src/update.rs  the update check, install and notification
 src-tauri/src/noaa.rs    the NGS station search, station metadata and UFCORS base download
 src-tauri/src/preflight.rs   the readiness report
 src-tauri/src/rtklib.rs  where the bundled tools are, and how a child process is run

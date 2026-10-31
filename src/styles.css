@@ -442,3 +442,16 @@ dialog .crs-picker .crs-picker-input{margin-top:0;height:32px}
 .settings-swatches-point{flex-wrap:wrap;gap:8px;max-width:172px;justify-content:flex-end}
 .settings-swatches-point .settings-swatch{outline:1px solid var(--line);outline-offset:-1px}
 .point-color-hex{width:84px;text-align:center;font-variant-numeric:tabular-nums;text-transform:lowercase}
+
+/* Software updates: a quiet topbar pill until a release is waiting, then one
+   dialog that carries the version, notes, progress and the one decision. */
+.update-pill{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border:1px solid var(--blue);border-radius:999px;background:var(--blue2);color:var(--blue);font:600 11px Roboto,Arial,sans-serif;cursor:pointer;white-space:nowrap}
+.update-pill:hover{background:var(--blue);color:#fff}
+.update-pill .material-symbols{font-size:15px}
+.update-pill[hidden]{display:none}
+.update-notes{max-height:150px;overflow:auto;margin:0 0 14px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--panel2);font:500 11px/1.55 Roboto,Arial,sans-serif;color:var(--soft);white-space:pre-wrap}
+.update-progress{display:flex;flex-direction:column;gap:5px;margin:0 0 14px;font:600 10px Roboto,Arial,sans-serif;color:var(--muted)}
+.update-progress[hidden]{display:none}
+.update-progress-track{height:7px;overflow:hidden;border-radius:999px;background:var(--line)}
+.update-progress-track span{display:block;width:0;height:100%;border-radius:inherit;background:var(--blue);transition:width .2s ease}
+.update-progress span{text-align:right}

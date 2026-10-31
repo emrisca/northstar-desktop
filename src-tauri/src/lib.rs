@@ -19,6 +19,7 @@ mod noaa;
 mod preflight;
 mod rtklib;
 mod store;
+mod update;
 
 pub use failure::Failure;
 use serde::Serialize;
@@ -26,6 +27,7 @@ use serde_json::{json, Value};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use store::{Entry, Store};
+use update::{update_check, update_install, update_state};
 use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 
 /// Where the window keeps the project it is editing. `None` means the project
@@ -437,10 +439,14 @@ pub fn run() {
 
     builder
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_notification::init())
         .setup(|app| {
             let root = app_data(app.handle())?;
             let store = Store::open(root).map_err(|error| error.to_string())?;
             let boot = boot_payload(&store);
+            // Manage the update state before the window can run update.js.
+            app.manage(update::UpdateHolder::new());
             let script = format!(
                 "window.__NORTHSTAR_BOOT__ = {};",
                 serde_json::to_string(&boot).unwrap_or_else(|_| "null".into())
@@ -480,6 +486,7 @@ pub fn run() {
                 installer: install::Installer::default(),
                 open: Mutex::new(Open { path: None }),
             });
+            update::watch(app.handle().clone());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -494,6 +501,9 @@ pub fn run() {
             project_folder,
             project_forget,
             settings_save,
+            update_state,
+            update_check,
+            update_install,
             preflight,
             noaa_nearby,
             noaa_station,

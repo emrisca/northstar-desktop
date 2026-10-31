@@ -7,5 +7,9 @@ src-tauri/gen/schemas/
 # Installed for the Tauri CLI only
 node_modules/
 
+# Updater signing material. The public key is in tauri.conf.json; these stay
+# on the release machine or in CI secrets.
+.secrets/
+
 # macOS folder metadata
 .DS_Store
