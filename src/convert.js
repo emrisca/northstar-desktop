@@ -167,7 +167,7 @@
   function loadConverterStatus() {
     return fetch('/api/preflight?noaa=0', { cache: 'no-store' })
       .then(async (response) => {
-        if (!response.ok) throw new Error('The local server did not answer the converter check.');
+        if (!response.ok) throw new Error('The desktop backend did not answer the converter check.');
         const report = await response.json();
         const binaries = report && report.rtklib && report.rtklib.binaries ? report.rtklib.binaries : {};
         const convbin = binaries.convbin || {};

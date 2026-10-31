@@ -1749,7 +1749,7 @@
         + '<div class="pp-install-actions">'
         + (done ? '<span class="pp-install-path">Installed in <code>tools/rtklib/bin</code></span><button class="primary-button" type="button" data-pp-action="rtklib-install-close">Done</button>'
           : failed ? '<button class="secondary-button" type="button" data-pp-action="rtklib-install-close">Close</button><button class="primary-button" type="button" data-pp-action="rtklib-install-retry">Try again</button>'
-            : '<span class="pp-foot-note">You can hide this panel; the installation continues in the local server.</span><button class="secondary-button" type="button" data-pp-action="rtklib-install-close">Hide</button>')
+            : '<span class="pp-foot-note">You can hide this panel; the installation continues in the background.</span><button class="secondary-button" type="button" data-pp-action="rtklib-install-close">Hide</button>')
         + '</div></div>';
     }
 
@@ -1804,9 +1804,9 @@
     render();
     try {
       const infoResponse = await fetch('/api/rtklib/install/info', { cache: 'no-store' });
-      if (!infoResponse.ok) throw new Error('The local server did not answer the installer check.');
+      if (!infoResponse.ok) throw new Error('The desktop backend did not answer the installer check.');
       const info = await infoResponse.json();
-      if (!info || typeof info !== 'object') throw new Error('The local server returned an unreadable installer answer.');
+      if (!info || typeof info !== 'object') throw new Error('The desktop backend returned an unreadable installer answer.');
       state.installer.info = info;
       const statusResponse = await fetch('/api/rtklib/install/status', { cache: 'no-store' });
       if (statusResponse.ok) {
@@ -1822,8 +1822,7 @@
         }
       }
     } catch (error) {
-      state.installer.error = (error && error.message ? error.message : 'The installer check failed.')
-        + ' The desktop backend did not answer.';
+      state.installer.error = error && error.message ? error.message : 'The installer check failed.';
     } finally {
       state.installer.busy = false;
       render();
@@ -1872,7 +1871,7 @@
     if (!state.installer.open || state.installer.poll !== token) return;
     try {
       const response = await fetch('/api/rtklib/install/status', { cache: 'no-store' });
-      if (!response.ok) throw new Error('The local server stopped answering the installer.');
+      if (!response.ok) throw new Error('The desktop backend stopped answering the installer.');
       const payload = await response.json();
       const job = payload && payload.job;
       if (!job || job.id !== jobId || state.installer.poll !== token) return;
@@ -1915,15 +1914,14 @@
     render();
     try {
       const response = await fetch('/api/preflight?noaa=1', { cache: 'no-store' });
-      if (!response.ok) throw new Error('The local Northstar server did not answer the setup check.');
+      if (!response.ok) throw new Error('The desktop backend did not answer the setup check.');
       const report = await response.json();
-      if (!report || typeof report !== 'object') throw new Error('The local setup check returned an unreadable answer.');
+      if (!report || typeof report !== 'object') throw new Error('The setup check returned an unreadable answer.');
       state.preflight.server = report;
       state.preflight.checkedAt = Date.now();
     } catch (error) {
       state.preflight.server = null;
-      state.preflight.error = (error && error.message ? error.message : 'The local setup check failed.')
-        + ' The desktop backend did not answer.';
+      state.preflight.error = error && error.message ? error.message : 'The setup check failed.';
     } finally {
       state.preflight.busy = false;
       render();
@@ -1940,7 +1938,7 @@
     if (showsEngine()) render();
     try {
       const response = await fetch('/api/rtklib/install/info', { cache: 'no-store' });
-      if (!response.ok) throw new Error('The local server did not answer the engine check.');
+      if (!response.ok) throw new Error('The desktop backend did not answer the engine check.');
       const info = await response.json();
       state.engine = {
         loading: false,
@@ -2252,7 +2250,7 @@
       + (engineReady ? '' : '<div class="pp-note warn">' + (engineChecking
         ? 'Checking for the local correction engine.'
         : engine.error
-          ? esc(engine.error) + ' The desktop backend did not answer.'
+          ? esc(engine.error)
           : 'RTKLIB is not installed. Open <b>Step 1 → Readiness check</b> and choose <b>Install RTKLIB</b>, or download the job package and run it with your own RTKLIB.') + '</div>')
       + (state.run.completed ? '<div class="pp-note"><b>Finished in ' + esc((state.run.elapsedMs / 1000).toFixed(1)) + ' s</b>'
         + (state.run.engine ? ' · ' + esc(state.run.engine) : '') + ' · ' + (state.result && state.result.fixed.length
