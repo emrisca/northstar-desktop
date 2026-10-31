@@ -6,7 +6,8 @@ fn main() {
         // so without Common Controls v6 it dies at startup with
         // STATUS_ENTRYPOINT_NOT_FOUND (0xc0000139). Disable the default manifest
         // and link this one into every target instead.
-        let windows = tauri_build::WindowsAttributes::new_without_app_manifest();
+        let windows = tauri_build::WindowsAttributes::new_without_app_manifest()
+            .window_icon_path("icons/icon.ico");
         tauri_build::try_build(tauri_build::Attributes::new().windows_attributes(windows))
             .expect("failed to run tauri-build");
         add_manifest();
