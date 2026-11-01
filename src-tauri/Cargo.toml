@@ -1,6 +1,6 @@
 [package]
 name = "northstar"
-version = "0.1.8"
+version = "0.1.9"
 description = "Northstar Field CAD desktop shell"
 edition = "2021"
 rust-version = "1.77"

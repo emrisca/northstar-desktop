@@ -455,3 +455,12 @@ dialog .crs-picker .crs-picker-input{margin-top:0;height:32px}
 .update-progress-track{height:7px;overflow:hidden;border-radius:999px;background:var(--line)}
 .update-progress-track span{display:block;width:0;height:100%;border-radius:inherit;background:var(--blue);transition:width .2s ease}
 .update-progress span{text-align:right}
+
+/* Measure tool: dashed amber, distinct from boundary green and line blue */
+.measure-glyph.material-symbols{font-size:19px;transform:rotate(-45deg)}
+.tree-icon.measure-icon{color:#e8772e}
+.measure-map-icon{background:none;border:0}
+.measure-map-tag{display:inline-block;transform:translate(-50%,-50%);padding:3px 7px;border:1px solid #e8772e66;border-radius:6px;background:#ffffffed;color:#8a3f10;box-shadow:0 1px 3px #10182a20;white-space:nowrap;font:600 11px Roboto,Arial,sans-serif;line-height:14px}
+.measure-map-tag-selected{border-color:#e8772e;color:#b4530a;font-weight:600}
+.dark .measure-map-tag{background:#20242ced;border-color:#e8772e88;color:#f2d6bf}
+.dark .measure-map-tag-selected{color:#ffb27a}
