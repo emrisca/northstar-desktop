@@ -4,7 +4,7 @@ Northstar is a field survey tool: waypoints on a map, property boundaries, dista
 
 This repository is the desktop build. It is the same interface in a native window, with the Python server replaced by Rust commands, so there is no terminal to start, no localhost, and no Python on the machine.
 
-Status: **batch 7, release hardening**. The window opens on the current interface, the map, waypoint, line and measurement code all work, nothing loads from a content delivery network, a project is a file on disk instead of a webview's storage, and all nine endpoints that used to come from `serve.py` answer from Rust. RTKLIB ships inside the build, so converting a raw log and running a correction need neither Python nor a compiler. The native shell now has a window-state plugin, a `.northstar.json` file association, a native application menu, About with third-party notices, a system-print report, and crash and frontend logs at a documented path. `npm test` runs the browser and Rust suites. Linux `.deb` and AppImage packages are built by the release workflow, with a Linux RTKLIB bundle built on the runner. macOS notarisation and Windows Authenticode signing remain open. [docs/plan.md](docs/plan.md) tracks each batch, and [docs/packaged-verification.md](docs/packaged-verification.md) is the installed-app release gate.
+Status: **batch 7, release hardening**. The window opens on the current interface, the map, waypoint, line and measurement code all work, nothing loads from a content delivery network, a project is a file on disk instead of a webview's storage, and all nine endpoints that used to come from `serve.py` answer from Rust. RTKLIB ships inside the build, so converting a raw log and running a correction need neither Python nor a compiler. The native shell now has a window-state plugin, a `.northstar.json` file association, a native application menu, About with third-party notices, a system-print report, and crash and frontend logs at a documented path. `npm test` runs the browser and Rust suites. The Linux `.deb` and AppImage job is paused in the release workflow while its packaging is fixed; `scripts/build-linux.sh` still builds those locally. macOS notarisation and Windows Authenticode signing remain open. [docs/plan.md](docs/plan.md) tracks each batch, and [docs/packaged-verification.md](docs/packaged-verification.md) is the installed-app release gate.
 
 ## Run it
 
@@ -70,7 +70,7 @@ TAURI_SIGNING_PRIVATE_KEY_PASSWORD=the-key-password
 npm run build
 ```
 
-The same two values are the GitHub Actions secrets `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` for the release workflow. Pushing a tag such as `v0.1.8` builds macOS, Windows and Linux on hosted runners, publishes the installers, and writes `latest.json` beside them. The source repository is public, so the app reads that file without a token.
+The same two values are the GitHub Actions secrets `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` for the release workflow. Pushing a tag such as `v0.1.8` builds macOS and Windows on hosted runners, publishes the installers, and writes `latest.json` beside them. The Linux job is paused while its packaging is fixed, so a release carries no Linux installers. The source repository is public, so the app reads that file without a token.
 
 ## How it is put together
 

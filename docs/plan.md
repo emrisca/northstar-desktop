@@ -150,7 +150,7 @@ Goal. An install someone else can run.
 - One command that runs the test suites.
 - The README rewritten for the desktop app, with the web build pointed at as the older option.
 
-Status. The app-side updater and the tag-driven release workflow are in place. The workflow now runs `npm test` and produces macOS, Windows and Linux artifacts; Linux carries a runner-built RTKLIB bundle. Crash and frontend logs are at a documented path, and `npm run verify:package` checks the artifact, association and resources. macOS is not yet notarised and Windows is not yet Authenticode-signed, so those warnings remain. The interactive release gate is [packaged-verification.md](packaged-verification.md).
+Status. The app-side updater and the tag-driven release workflow are in place. The workflow now runs `npm test` and produces macOS and Windows artifacts. The Linux job is paused while its packaging is fixed; its runner-built RTKLIB bundle and the `.deb` and AppImage packages are still produced locally by `scripts/build-linux.sh`. Crash and frontend logs are at a documented path, and `npm run verify:package` checks the artifact, association and resources. macOS is not yet notarised and Windows is not yet Authenticode-signed, so those warnings remain. The interactive release gate is [packaged-verification.md](packaged-verification.md).
 
 Check. A build from a clean clone installs and runs on a machine that has never had Python.
 
