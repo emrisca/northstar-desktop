@@ -1,5 +1,19 @@
 # Release notes
 
+## 0.1.10 — measures on the 3D globe
+
+Measures now render on the Cesium globe, so switching renderers no longer makes
+them vanish. Each one is the same dashed amber segment as on the 2D map, with
+white endpoint dots, the same 2.5 pixel weight when unselected and 5 pixels when
+selected, and the distance in the project units at its midpoint. An end that is
+snapped to a waypoint keeps following that waypoint on the globe, and the layer
+rebuilds only when the project data, the selection or the units change, never on
+a camera move.
+
+The globe stays read-only for measuring: with the Measure tool active, a click on
+the globe does not add a waypoint, a vertex or a boundary, and pressing C leaves
+an open poly line unclosed.
+
 ## 0.1.9 — measure tool
 
 A Measure tool now sits beside Select, Line, Poly line and Point. Click anywhere

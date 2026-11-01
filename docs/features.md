@@ -25,7 +25,7 @@ Every behaviour in the web build, grouped by where the person meets it. The file
 
 - Point tool, which stays active for several points, and Add point, which takes a typed name and a coordinate in five formats. `app.js`, `coords.js`
 - Line tool that connects two waypoints, and Poly line that keeps adding connected waypoints, rings the last vertex, draws a snapping rubber band with a live distance, and closes into a parcel when you click the first vertex of three or more. `app.js`
-- Measure tool that joins any two map clicks with a dashed amber line and its distance in the project units, snapping an end to a waypoint within 14 pixels, listing each measure under Measures in the object tree, and leaving lines, boundaries and side tags untouched. `app.js`
+- Measure tool that joins any two map clicks with a dashed amber line and its distance in the project units, snapping an end to a waypoint within 14 pixels, listing each measure under Measures in the object tree, and leaving lines, boundaries and side tags untouched. The same measures render on the 2D canvas, the Leaflet basemaps and the Cesium globe, with endpoint dots and the distance label, following snapped waypoints and rebuilding only when the data or selection changes. `app.js`, `cesium-view.js`
 - Rectangle tool through Terra Draw, one undoable feature that saves with the project. `app.js`
 - Select tool, with waypoint dragging that updates coordinates and recalculates dependent parcels and measurements on release, as one undo step. `app.js`
 - Boundary side editing: delete a side (a closed parcel reopens, an open line splits or disappears), and add a break by clicking a side with the Point tool. `app.js`

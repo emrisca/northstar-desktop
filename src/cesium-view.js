@@ -569,6 +569,13 @@
     const S = app()?.S;
     if (!S) return;
 
+    // Measures are read-only decoration here. Never let a globe click reach the
+    // line, boundary or side-tag tools while the measure tool is active.
+    if (S.tool === 'measure') {
+      message('Measures show on the globe. Use a 2D basemap to draw a new one.');
+      return;
+    }
+
     if (S.tool === 'point') {
       addPointAt(position);
       return;
@@ -655,6 +662,16 @@
     const stamp = JSON.stringify([
       S.points.map((p) => [p.id, p.name, p.lat, p.lon, p.symbol, p.showLabel === true]),
       S.lines.map((line) => [line.id, line.name, line.ids, line.closed, line.color]),
+      (S.measures || []).map((measure) => {
+        const ends = app()?.measureEndpoints?.(measure) || [];
+        return [
+          measure.id,
+          measure.name,
+          ends.map((end) => (end ? [+end.lat, +end.lon] : null)),
+          app()?.measureLabel?.(measure) || '',
+          S.selected === measure.id
+        ];
+      }),
       S.selected,
       S.hidden?.points === true,
       S.hidden?.boundary === true,
@@ -732,6 +749,67 @@
         });
       });
     }
+
+    // Measures are decoration from the 2D tools: dashed amber segment, endpoint
+    // dots and the project-unit distance at the midpoint, with the same selected
+    // weight and label emphasis as the canvas and Leaflet layers.
+    const measureAmber = Cesium.Color.fromCssColorString('#e8772e');
+    const measureEndsOf = app()?.measureEndpoints;
+    const measureLabelOf = app()?.measureLabel;
+    (S.measures || []).forEach((measure) => {
+      const ends = measureEndsOf ? measureEndsOf(measure) : [];
+      const start = ends[0];
+      const end = ends[1];
+      if (!start || !end) return;
+      if (!Number.isFinite(+start.lat) || !Number.isFinite(+start.lon)) return;
+      if (!Number.isFinite(+end.lat) || !Number.isFinite(+end.lon)) return;
+      const selected = S.selected === measure.id;
+      const text = measureLabelOf ? measureLabelOf(measure) : '';
+      const startPosition = Cesium.Cartesian3.fromDegrees(+start.lon, +start.lat);
+      const endPosition = Cesium.Cartesian3.fromDegrees(+end.lon, +end.lat);
+      dataSource.entities.add({
+        id: 'measure:' + measure.id,
+        polyline: {
+          positions: [startPosition, endPosition],
+          width: selected ? 5 : 2.5,
+          material: new Cesium.PolylineDashMaterialProperty({ color: measureAmber, dashLength: 18 }),
+          arcType: Cesium.ArcType.GEODESIC
+        }
+      });
+      [startPosition, endPosition].forEach((position, index) => {
+        dataSource.entities.add({
+          id: 'measure-end:' + measure.id + ':' + index,
+          position,
+          point: {
+            pixelSize: selected ? 9 : 7,
+            color: Cesium.Color.WHITE,
+            outlineColor: measureAmber,
+            outlineWidth: 2,
+            disableDepthTestDistance: Number.POSITIVE_INFINITY
+          }
+        });
+      });
+      if (text) {
+        dataSource.entities.add({
+          id: 'measure-label:' + measure.id,
+          position: Cesium.Cartesian3.fromDegrees((+start.lon + +end.lon) / 2, (+start.lat + +end.lat) / 2),
+          label: {
+            text,
+            font: '600 12px Roboto, Arial, sans-serif',
+            fillColor: Cesium.Color.WHITE,
+            outlineColor: Cesium.Color.fromCssColorString('#10151c'),
+            outlineWidth: 2,
+            style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+            verticalOrigin: Cesium.VerticalOrigin.CENTER,
+            showBackground: true,
+            backgroundColor: selected ? measureAmber.withAlpha(0.92) : Cesium.Color.fromCssColorString('#10151c').withAlpha(0.8),
+            backgroundPadding: new Cesium.Cartesian2(8, 5),
+            disableDepthTestDistance: Number.POSITIVE_INFINITY,
+            scaleByDistance: new Cesium.NearFarScalar(200, 1, 500000, 0.75)
+          }
+        });
+      }
+    });
 
     if (typeof S.selected === 'string' && S.selected.startsWith('segment:')) {
       const [from, to] = S.selected.slice(8).split('|');
