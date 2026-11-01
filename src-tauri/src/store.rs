@@ -375,6 +375,7 @@ fn file_stem(path: &Path) -> String {
         .and_then(|name| name.to_str())
         .unwrap_or("project");
     name.strip_suffix(".northstar.json")
+        .or_else(|| name.strip_suffix(".northstar"))
         .or_else(|| name.strip_suffix(".json"))
         .unwrap_or(name)
         .to_string()

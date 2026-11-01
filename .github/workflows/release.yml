@@ -35,7 +35,7 @@ jobs:
         with:
           tagName: v__VERSION__
           releaseName: Northstar v__VERSION__
-          releaseBody: "Download the installer below. Existing installs will offer this version from the app.\n\nmacOS: open .northstar.json with File > Open Project; direct Finder double-click is not available because LaunchServices resolves the compound suffix as public.json. Windows/Linux: the package metadata declares the .northstar.json association."
+          releaseBody: "Download the installer below. Existing installs will offer this version from the app.\n\nmacOS: double-click a .northstar project, or use File > Open Project for a .northstar.json written by an older build. Windows/Linux: the package metadata declares both suffixes."
           releaseDraft: false
           prerelease: false
           includeUpdaterJson: true
@@ -68,7 +68,7 @@ jobs:
         with:
           tagName: v__VERSION__
           releaseName: Northstar v__VERSION__
-          releaseBody: "Download the installer below. Existing installs will offer this version from the app.\n\nmacOS: open .northstar.json with File > Open Project; direct Finder double-click is not available because LaunchServices resolves the compound suffix as public.json. Windows/Linux: the package metadata declares the .northstar.json association."
+          releaseBody: "Download the installer below. Existing installs will offer this version from the app.\n\nmacOS: double-click a .northstar project, or use File > Open Project for a .northstar.json written by an older build. Windows/Linux: the package metadata declares both suffixes."
           releaseDraft: false
           prerelease: false
           includeUpdaterJson: true
@@ -113,7 +113,7 @@ jobs:
         with:
           tagName: v__VERSION__
           releaseName: Northstar v__VERSION__
-          releaseBody: "Download the installer below. Existing installs will offer this version from the app.\n\nmacOS: open .northstar.json with File > Open Project; direct Finder double-click is not available because LaunchServices resolves the compound suffix as public.json. Windows/Linux: the package metadata declares the .northstar.json association."
+          releaseBody: "Download the installer below. Existing installs will offer this version from the app.\n\nmacOS: double-click a .northstar project, or use File > Open Project for a .northstar.json written by an older build. Windows/Linux: the package metadata declares both suffixes."
           releaseDraft: false
           prerelease: false
           includeUpdaterJson: true

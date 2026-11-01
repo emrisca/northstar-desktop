@@ -18,8 +18,9 @@ npm run verify:package
 ```
 
 The command fails unless it finds a packaged artifact, the
-`.northstar.json` file association in `src-tauri/tauri.conf.json`, and this
-platform's RTKLIB bundle with both tools, `BUNDLED.json` and `LICENSE.txt`.
+`.northstar` and `.northstar.json` file associations in
+`src-tauri/tauri.conf.json`, and this platform's RTKLIB bundle with both tools,
+`BUNDLED.json` and `LICENSE.txt`.
 It prints the interactive checklist below when those pass.
 
 ## Interactive checks
@@ -28,18 +29,20 @@ It prints the interactive checklist below when those pass.
    Northstar, Python or RTKLIB. Launch it from the installed application, not
    from the checkout.
 2. **Native open dialog.** Choose **File > Open Project…**. Select a
-   `.northstar.json` project. The project opens in the current window. Cancel
+   `.northstar` project, or a `.northstar.json` written by an older build. The
+   project opens in the current window. Cancel
    the dialog once and confirm nothing changes.
 3. **Native save dialog.** Choose **File > Save a Copy…**, save to a new
    folder, reopen that copy, and confirm the project contents.
 4. **File association.** Quit Northstar. On Windows, double-click a
-   `.northstar.json` project in Explorer and confirm it opens in Northstar.
-   On Linux, install the `.deb` and confirm the desktop entry lists Northstar for
-   JSON projects. On macOS, run the audit below; the observed result is that
-   LaunchServices resolves the sample to `public.json`, so direct double-click
-   and bare `open` do not reach Northstar. Use **File > Open Project…** for the
-   supported path, and record that direct association is not supported. In every
-   case, with Northstar already running, open a second project and confirm it
+   `.northstar` project in Explorer and confirm it opens in Northstar, then
+   repeat with a `.northstar.json` written by an older build. On Linux, install
+   the `.deb` and confirm the desktop entry lists Northstar for Northstar
+   projects. On macOS, run the audit below: a `.northstar` sample resolves to
+   `com.emrisca.northstar.project` and to Northstar, so double-click and a bare
+   `open` reach the app, while a compound `.northstar.json` still resolves to
+   `public.json` and needs **File > Open Project…**. In every case, with
+   Northstar already running, open a second project and confirm it
    uses the existing window rather than starting a second instance.
 5. **Window state.** Resize and move the window, maximize it, quit, and launch
    again. The size, position and maximized state return. Repeat after a
@@ -92,21 +95,28 @@ records `INFO project: opened <path>` after the project has been read.
 ## macOS file-association audit
 
 The full experiment log is in [file-association.md](file-association.md). To
-repeat the current result:
+repeat the current result, build a debug bundle and register it:
 
 ```sh
+npm run build -- --debug --bundles app
 APP=src-tauri/target/debug/bundle/macos/Northstar.app
-SAMPLE=.tmp/association-test.northstar.json
-plutil -p "$APP/Contents/Info.plist" | grep -A12 CFBundleDocumentTypes
-mdls -name kMDItemContentType -name kMDItemContentTypeTree "$SAMPLE"
+SAMPLE=.tmp/association-test.northstar
+
+LSREG=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
+"$LSREG" -f "$APP" && "$LSREG" -gc
+swift scripts/macos-association-check.swift "$SAMPLE"
 open "$SAMPLE"
 ```
 
-On macOS 26.6.2, `mdls` reports `public.json`, the LaunchServices default is the
-system JSON editor, and no Northstar process or `project: opened` log line is
-created. The bundle's own `.northstar.json` UTI and Owner claim are present in
-`lsregister -dump`, but a compound filename suffix is not resolved to that UTI.
-This is a platform limitation, not an unchecked application path.
+On macOS 26.6.2 the probe reports
+`URLResourceValues.contentType: com.emrisca.northstar.project` and
+`NSWorkspace: …/Northstar.app` for the single-dot sample, and the app records
+`INFO project: opened <path>` once the project has been read. A compound
+`.northstar.json` sample still reports `public.json`: LaunchServices resolves
+the compound suffix before the declaration is consulted, so that file needs
+**File > Open Project…** or an explicit `open -a Northstar <file>`. Both
+suffixes stay declared, because the compound one is what older builds wrote and
+what the Windows and Linux packages name.
 
 ## Linux release check
 

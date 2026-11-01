@@ -483,12 +483,10 @@
       dialog.querySelector('[data-about-platform]').textContent = info.platform || 'desktop';
       dialog.querySelector('[data-about-rtklib]').textContent = info.rtklib || 'not found';
       var mac = String(info.platform || '').indexOf('macos') === 0;
-      dialog.querySelector('[data-about-association]').textContent = mac
-        ? 'File > Open Project'
-        : '.northstar.json';
+      dialog.querySelector('[data-about-association]').textContent = '.northstar';
       dialog.querySelector('[data-about-association-note]').textContent = mac
-        ? 'macOS LaunchServices resolves the compound .northstar.json suffix as public.json, so direct Finder double-click is not available. Use File > Open Project, or open the app explicitly with the file.'
-        : 'The bundle declares the .northstar.json suffix for direct opening.';
+        ? 'Finder opens a .northstar file in this app. macOS resolves the compound .northstar.json suffix as public.json, so those files open through File > Open Project.'
+        : 'The bundle declares the .northstar and .northstar.json suffixes for direct opening.';
       dialog.querySelector('[data-about-logs]').textContent = info.logFile || info.logDir || '';
       dialog.querySelector('[data-about-crash]').textContent = info.crashFile || '';
       dialog.querySelector('[data-about-notices]').textContent = info.notices || '';

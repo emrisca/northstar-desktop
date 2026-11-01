@@ -1,8 +1,8 @@
 # The batch plan
 
-Northstar runs in a browser today, served by a Python script. This plan turns it into a desktop app without rewriting the interface, and splits the work so each batch can be built, tested and pushed on its own.
+Northstar is a desktop app. It began as a page served by a Python script, and this plan is the record of turning that page into a shell without rewriting the interface, split so each batch could be built, tested and pushed on its own.
 
-State: batches 0 to 5 implemented. Batch 7 release hardening is partly delivered; batch 6, macOS notarisation and Windows Authenticode remain open.
+State: batches 0 to 6 delivered, and batch 7 delivered except the installed-app gate. macOS notarisation and Windows Authenticode are out of scope by decision, because both need paid certificates.
 
 ## How a batch finishes
 
@@ -31,13 +31,15 @@ Delivered.
 - The content security policy replaced `null` in `tauri.conf.json`. It names 34 hosts across basemaps, imagery, terrain, overlays and the assessor parcel services, and allows inline styles, blob and data images, blob workers, and for scripts only Cesium's needs: `'unsafe-eval'`, `'wasm-unsafe-eval'` and `blob:`. No remote origin appears in `script-src`, which is what keeps a CDN payload out.
 - The service worker registration went with `sw.js` in batch 0, and the cache-busting query strings stay because they cost nothing.
 
-Check. All three engines render, and so does the globe from disk. A California viewport loads assessor parcel lines from the state service. The historical basemap fetches its style and shows the year slider. The blank grid renders and stays editable.
+Check. Both engines render, and so does the globe from disk. A California viewport loads assessor parcel lines from the state service. The historical basemap fetches its style and shows the year slider. The blank grid renders and stays editable.
 
 Measured on 30 October 2026, page served over HTTP with the policy sent as a header so it was enforced during the run:
 
 - 109 resource requests since navigation, none to `unpkg`, `jsdelivr`, `cdnjs`, `fonts.googleapis` or `fonts.gstatic`. The only hosts were the five tile and style services, plus `127.0.0.1` for the vendored files, which include two font files and every Cesium asset.
 - The globe reported Cesium 1.146.0 active with its canvas present, and the console logged nothing at all during that load.
 - The Tauri window renders the street basemap, the toolbar and the status bar with the policy in force.
+
+A third engine was removed after this batch. The Leaflet raster engine and its button are gone: every basemap, raster tiles included, is now drawn by MapLibre GL through the Leaflet bridge, so the renderer picker has two entries, **2D map** and **3D globe**, and `S.renderer` migrates a stored `raster` to `vector`. The globe still substitutes a comparable basemap for a style it cannot draw, and the picker drops back to the 2D engine with a message when that would happen rather than showing a different map than the one chosen.
 
 Two notes for later batches. Cesium and MapLibre both build workers from blob URLs and Cesium compiles WebAssembly, which is why `script-src` is broader than `'self'`; isolating the globe would be the way to narrow it again. And one OpenHistoricalMap tile returned 404 during the run, which is the upstream tile service, not a local path.
 
@@ -97,7 +99,7 @@ Delivered.
 - `src-tauri/src/install.rs` is the recovery path (`rtklib_install_info`, `rtklib_install_status`, `rtklib_install`): the one pinned archive, SHA-256 verified, extracted on Windows or built from source on macOS and Linux, placed in the data folder with the install record, and refused outright when the bundle already provides the tools. The panel polls the job, so the job is the channel: step, percentage, log lines and end state.
 - `src-tauri/src/failure.rs` carries the status a refusal used to have. `src/native.js` turns it back into the proxy's status, reads the query string and the body the way `serve.py` did, and sends a file as base64 because an array of forty million numbers would serialise to four times the bytes.
 
-Check. 66 tests pass, seven are opt-in. Two of those seven drive the bundled engine:
+Check. 66 tests passed at this batch, seven of them opt-in; the suite is 67 now, the five tile-cache tests from batch 6 included. Two of the opt-in seven drive the bundled engine:
 
 | What | Result |
 | --- | --- |
@@ -123,13 +125,13 @@ Goal. The app behaves like a desktop app rather than a page in a frame.
 
 - An application menu, with the map shortcuts left alone.
 - Window size, position and state restored between launches.
-- A `.northstar.json` file association, and opening a file from Finder or Explorer.
+- A `.northstar` file association, with `.northstar.json` still declared and openable, and opening a file from Finder or Explorer.
 - About, with the version and the third-party notices.
 - Printing the selected-points report through the system dialog.
 
-Delivered in code: the native menu dispatches to the same bridge the in-window menus use; `tauri-plugin-window-state` restores size, position and state; the bundle declares the `.northstar.json` document type and handles `RunEvent::Opened` as well as second-launch arguments; About carries the version, RTKLIB version, log paths and third-party notices; and the system print dialog receives the selected-points report. The Windows and Linux bundle metadata name the compound suffix. On macOS the custom UTI is registered, but LaunchServices resolves `.northstar.json` to `public.json`; direct Finder double-click and bare `open` do not reach the app. Exported/imported declarations, `LSHandlerRank` Owner/Default, legacy `CFBundleTypeExtensions`, `public.json`/`public.data` bindings, `NSUtiquitousDocumentUserActivityType`, and local/user `lsregister` rescans were all tested; [file-association.md](file-association.md) records the exact commands and results. A single-dot `.northstar` control resolves correctly, which isolates the failure to the compound suffix.
+Delivered in code: the native menu dispatches to the same bridge the in-window menus use; `tauri-plugin-window-state` restores size, position and state; the bundle declares the `.northstar` and `.northstar.json` document types and handles `RunEvent::Opened` as well as second-launch arguments; About carries the version, RTKLIB version, log paths and third-party notices; and the system print dialog receives the selected-points report. The Windows and Linux bundle metadata name both suffixes, as the macOS bundle does. On macOS the compound `.northstar.json` suffix is the exception: LaunchServices resolves it to `public.json` whatever the declaration says. Exported/imported declarations, `LSHandlerRank` Owner/Default, legacy `CFBundleTypeExtensions`, `public.json`/`public.data` bindings, `NSUtiquitousDocumentUserActivityType`, and local/user `lsregister` rescans were all tested; [file-association.md](file-association.md) records the exact commands and results. A single-dot `.northstar` control resolves correctly, which isolates the failure to the compound suffix, so batch 5 closed on that control: the bundle now declares `.northstar` beside `.northstar.json`, `project_path` accepts both, both dialogs filter on both, and **Save a copy…** writes `.northstar`. Probed against the debug bundle on 1 November 2026, a `.northstar` sample resolves to `com.emrisca.northstar.project` and to Northstar.app, while `.northstar.json` still resolves to `public.json`.
 
-Check. Double-clicking a project opens it in the running window, every shortcut still reaches the map, and the printed report matches the PDF the web build produced. The interactive checks are in [packaged-verification.md](packaged-verification.md).
+Check. Double-clicking a project opens it in the running window, every shortcut still reaches the map, and the printed report matches the PDF the web build produced. The association half is measured rather than clicked: LaunchServices resolves a `.northstar` sample to Northstar.app, and the end-to-end double-click was not repeated because an instance was already running with a project open. The interactive checks are in [packaged-verification.md](packaged-verification.md).
 
 ## Batch 6. Offline and speed
 
@@ -140,17 +142,46 @@ Goal. A field machine with no connection is a first-class case.
 
 Check. The app starts with networking off, cached tiles and the blank grid both work, cold start is under two seconds, and dragging stays responsive on the fixture.
 
+Delivered.
+
+**The cache.** `src-tauri/src/tilecache.rs` stores every raster, terrain and overlay tile the 2D map draws under the app data folder in `tiles/`, keyed by the SHA-256 of its URL and written through a temporary name so a reader never sees half a tile. The cap is 1 GiB (`DEFAULT_CAP_BYTES`) and the eviction rule is least-recently-used, with the file's modification time as the access record: a hit touches it, and an eviction pass sorts on that stamp and drops the oldest until the folder is under the cap. Nothing else is stored, so there is no index to fall out of step with the files.
+
+The webview never opens the folder. It asks `northstar-tile://cache/?u=<encoded url>`; `lib.rs` registers that scheme, serves a hit or fetches a miss on a worker thread, and `tilecache::check` refuses anything that is not https on the tile hosts the picker offers. The scheme is reachable from the page, so that allowlist is what stops it becoming an open proxy beside `connect-src`, and the policy now names `northstar-tile:` in `img-src` and `connect-src`. `app.js` rewrites tile templates through one helper, leaving `{z}`, `{x}`, `{y}` and `{s}` outside the percent encoding so MapLibre still substitutes them.
+
+Five tests cover the module: a round trip that also proves a hit moves a tile out of the oldest slot, the eviction order over three tiles, the refusal list, the query encoding round trip, and the MIME fallback.
+
+**The budgets.** `tests/load-budget.test.mjs` runs the real interface in Chrome with every non-local request blocked — the field case — builds a ten thousand waypoint project with fifty boundaries, and times the load path, the hit index, per-frame draws, the object tree and the save. `npm test` runs it after the partition suite and before the Rust suite, so the release job enforces the ceilings. Measured on 1 November 2026:
+
+| What | Result | Ceiling |
+| --- | --- | --- |
+| Cold load: apply the project, rebuild the tree, serialise | 507 ms | 2 000 ms |
+| Hit index rebuild (RBush over 10 000 points and the boundaries) | 7 ms | 2 000 ms |
+| Draw per frame, median of 20 | 2.2 ms | 100 ms |
+| Draw per frame, worst | 3.9 ms | — |
+| Object tree rebuild | 48 ms | — |
+| Project serialise and save | 123 ms | — |
+
+**What is not cached, and why.** Vector basemaps. Their style, glyph and sprite requests go through `fetch`, and WebKit's behaviour for `fetch` on a custom scheme has not been measured on macOS, so routing them could break the default street map rather than speed it up; they keep direct URLs. Raster basemaps, terrain and overlays — the imagery a field job needs — are cached.
+
+The cache's own end-to-end line, "cached tiles still draw with networking off", needs the packaged window, because the scheme only exists inside the shell. The budget above is the same fixture with networking off and the scheme is covered by the module tests, but the two together in an installed build sit on the release gate.
+
 ## Batch 7. Release
 
 Goal. An install someone else can run.
 
-- Signed and notarised macOS build, and a Windows installer.
+- macOS and Windows installers, signed where a paid certificate is not the price.
 - An updater feed.
 - A documented crash log location.
 - One command that runs the test suites.
 - The README rewritten for the desktop app, with the web build pointed at as the older option.
 
 Status. The app-side updater and the tag-driven release workflow are in place. The workflow now runs `npm test` and produces macOS, Windows and Linux artifacts; Linux carries a runner-built RTKLIB bundle. Crash and frontend logs are at a documented path, and `npm run verify:package` checks the artifact, association and resources. macOS is not yet notarised and Windows is not yet Authenticode-signed, so those warnings remain. The interactive release gate is [packaged-verification.md](packaged-verification.md).
+
+Checked against the published releases on 1 November 2026, v0.1.12 being the latest: the release carries `latest.json` for the updater, and signed artifacts for all three platforms — `.dmg` and `.app.tar.gz`, `x64-setup.exe` and `.msi`, `.deb` and `.AppImage` — each with its `.sig`. So the feed the app polls and the signing key the updater verifies are both real, not merely configured in the tree. `npm test` is one command for both suites, and the log paths are documented per platform in the README and [packaged-verification.md](packaged-verification.md). The workflow's release notes were brought up to date in this pass: they now describe the `.northstar` association batch 5 delivered instead of the old compound-suffix caveat.
+
+Scope decision, 1 November 2026: this is a personal build, and notarisation (the Apple Developer Program) and Authenticode (a code-signing certificate) both need paid certificates that are not being bought. They are out of scope by choice, not unfinished work. What that costs is stated plainly: macOS shows Gatekeeper's unidentified-developer warning on first launch and the Windows installer is unsigned, and both install normally past it. The updater's signing is a different key — the Tauri key the release job already holds — so an installed copy still verifies and applies updates.
+
+Still open: a run on a machine that has never had Python, and the installed-app gate. The shell starts no Python process at all — the interface is compiled into the binary and RTKLIB ships inside it — so that risk is a build-time one, not a runtime one.
 
 Check. A build from a clean clone installs and runs on a machine that has never had Python.
 
@@ -168,7 +199,7 @@ No new service. The map sources, NOAA, Nominatim and the currency rates are the 
 
 Cesium, proj4 and Turf expect browser globals, and the content security policy has to allow the tile and terrain hosts or the globe fails with a blank canvas.
 
-The map's keyboard shortcuts will collide with the application menu until batch 5 decides which layer owns them.
+The map's keyboard shortcuts and the application menu both want the same keys. Batch 5 settled it by having the native menu dispatch to the same bridge the in-window menus use, so the map keeps its shortcuts; a later menu addition has to check that first.
 
 Bundled RTKLIB binaries changed where the readiness check looks, and batch 4 did it in one step: the bundle is one entry in one list, and an existing `tools/rtklib` install is still found after it. A platform whose bundle is missing falls back to the recovery installer, which needs a compiler only on macOS and Linux.
 

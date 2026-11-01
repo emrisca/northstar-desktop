@@ -4,7 +4,7 @@ Every behaviour in the web build, grouped by where the person meets it. The file
 
 ## 1. The map
 
-- Three rendering engines, chosen in the basemap picker: Vector GL (MapLibre through the Leaflet bridge), Raster (plain Leaflet tiles), and a 3D globe built on CesiumJS. `mapstyles.js`, `cesium-view.js`, `app.js`
+- Two rendering engines, chosen in the basemap picker: a 2D map where every basemap, raster tiles or vector style, is drawn by MapLibre GL through the Leaflet bridge so zoom is continuous, and a 3D globe built on CesiumJS. `mapstyles.js`, `cesium-view.js`, `app.js`
 - About eighteen basemap entries across street, satellite, aerial, topographic, historical and blank. The picker names the active one. `mapstyles.js`
 - OpenHistoricalMap group with four looks at the same data (OpenHistoricalMap, Woodblock, Japanese scroll, Railway), each obeying a year slider from 1700 to 2026 that filters features by `start_decdate` and `end_decdate`. `app.js`, `mapstyles.js`
 - Live changeset watch while a historical basemap is selected: one request a minute for newly closed OpenHistoricalMap changesets, refreshed only when one overlaps the current view, paused while the tab is hidden. `app.js`

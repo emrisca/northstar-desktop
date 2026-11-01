@@ -4,7 +4,7 @@ Northstar is a field survey tool: waypoints on a map, property boundaries, dista
 
 This repository is the desktop build. It is the same interface in a native window, with the Python server replaced by Rust commands, so there is no terminal to start, no localhost, and no Python on the machine.
 
-Status: **batch 7, release hardening**. The window opens on the current interface, the map, waypoint, line and measurement code all work, nothing loads from a content delivery network, a project is a file on disk instead of a webview's storage, and all nine endpoints that used to come from `serve.py` answer from Rust. RTKLIB ships inside the build, so converting a raw log and running a correction need neither Python nor a compiler. The native shell now has a window-state plugin, a `.northstar.json` file association, a native application menu, About with third-party notices, a system-print report, and crash and frontend logs at a documented path. `npm test` runs the browser and Rust suites. Linux `.deb` and AppImage packages are built by the release workflow, with a Linux RTKLIB bundle built on the runner. macOS notarisation and Windows Authenticode signing remain open. [docs/plan.md](docs/plan.md) tracks each batch, and [docs/packaged-verification.md](docs/packaged-verification.md) is the installed-app release gate.
+Status: **batch 7, release hardening**. The window opens on the current interface, the map, waypoint, line and measurement code all work, nothing loads from a content delivery network, a project is a file on disk instead of a webview's storage, and all nine endpoints that used to come from `serve.py` answer from Rust. RTKLIB ships inside the build, so converting a raw log and running a correction need neither Python nor a compiler. The native shell now has a window-state plugin, a `.northstar` file association that macOS resolves (with `.northstar.json` from older builds still opening), a native application menu, About with third-party notices, a system-print report, and crash and frontend logs at a documented path. Raster, terrain and overlay map tiles are cached on disk by the shell, so a basemap that has been viewed keeps drawing without a connection. `npm test` runs the browser and Rust suites. Linux `.deb` and AppImage packages are built by the release workflow, with a Linux RTKLIB bundle built on the runner. macOS and Windows builds are unsigned: notarisation and Authenticode both need paid certificates, which are out of scope for a personal build, so macOS shows the unidentified-developer warning once. The updater is signed separately with the Tauri key and works. [docs/plan.md](docs/plan.md) tracks each batch, and [docs/packaged-verification.md](docs/packaged-verification.md) is the installed-app release gate.
 
 ## Run it
 
@@ -106,7 +106,7 @@ Windows uses the same two files under `%APPDATA%\com.emrisca.northstar\`.
 
 The Project menu offers Open project (a native file dialog), Recent projects (the list, which is also what a first launch shows), New project, Save now and Save a copy. A project dragged onto the window opens in the window that is already running, and so does a second launch that names a file. Saving happens on its own 400 ms after the last change, and the dot beside the project name says whether the file is current.
 
-The project file keeps the shape the web build exports, plus a `version`. A file without one is version 1 and is migrated on read, so a project exported from the web build opens here, and a project saved here opens there. The bundle declares a `.northstar.json` document type and hands a launched path to the running window. Windows and Linux packages declare the suffix in their installer metadata. On macOS, the custom UTI is registered, but LaunchServices resolves a sample `.northstar.json` to `public.json`; the default handler and a bare `open` therefore stay with the system JSON handler, and Northstar is not in the `public.json` handler list. Use **File > Open Project…**, or an explicit `open -a Northstar <file>`. [docs/file-association.md](docs/file-association.md) records the exact variants and the observed limits.
+The project file keeps the shape the web build exports, plus a `version`. A file without one is version 1 and is migrated on read, so a project exported from the web build opens here, and a project saved here opens there. The bundle declares `.northstar` and `.northstar.json`, and the shell's path check accepts both, so a launch argument, a dropped file and a second launch all open either suffix. On macOS a `.northstar` file double-clicks into this app: LaunchServices resolves it to `com.emrisca.northstar.project` and to Northstar. A compound `.northstar.json` still resolves to `public.json` whatever the declaration says, so those open through **File > Open Project…** or an explicit `open -a Northstar <file>`; **Save a copy…** writes the single-dot name for exactly that reason. [docs/file-association.md](docs/file-association.md) records the probe output and the variants that failed.
 
 ## Desktop integration
 
@@ -145,6 +145,21 @@ The web build fetched Leaflet, MapLibre, Turf, RBush, GeographicLib, proj4 and t
 The content security policy in `src-tauri/tauri.conf.json` replaced a `null` value, so the webview enforces it. It allows scripts only from the app itself, plus Cesium's two needs: `'unsafe-eval'` for its shader code, `'wasm-unsafe-eval'` for its transcoders, and `blob:` because it and MapLibre build workers from blob URLs. Network access is limited to the map, imagery, terrain, overlay and parcel hosts the picker offers. No remote origin is in `script-src`, so a substituted script cannot run even if a page were tricked into asking for one.
 
 Measured over HTTP with the policy sent as a header: 109 requests, none to a CDN, with the globe loaded from disk and an empty console.
+
+The 2D map also keeps its tiles on disk. `src-tauri/src/tilecache.rs` stores
+each raster, terrain and overlay tile under the app data folder, keyed by URL,
+with a 1 GiB cap and least-recently-used eviction. The page asks for a tile
+through the `northstar-tile://` scheme and the shell answers from that folder or
+fetches once, so a basemap that has been viewed keeps drawing with networking
+off. Vector basemaps are not cached yet: their requests go through `fetch`, which
+has not been measured on a custom scheme under WebKit.
+
+The budgets that go with it are measured rather than asserted. `tests/load-budget.test.mjs`
+runs the interface in Chrome with every non-local request blocked and a ten
+thousand waypoint project loaded: 507 ms to apply it, rebuild the tree and
+serialise it, 7 ms to rebuild the hit index, and 2.2 ms for the median frame.
+`npm test` fails if the load or index passes two seconds or the median frame
+passes 100 ms.
 
 Tauri loads `src/` directly. There is no build step for the interface, which keeps the port honest: the files here are the files the web build shipped, minus the service worker and the Python-only paths.
 

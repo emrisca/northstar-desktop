@@ -115,6 +115,12 @@
     return GLOBE_ALIASES[layer] || 'street';
   }
 
+  // Can the globe draw this basemap as-is, or would it have to substitute one?
+  function supportsLayer(layer) {
+    return layer === 'blank' || !!RASTERS[layer] || !!GLOBE_ALIASES[layer];
+  }
+
+
   function ensureCesium() {
     if (window.Cesium?.Viewer) return Promise.resolve(window.Cesium);
     if (loadPromise) return loadPromise;
@@ -942,7 +948,7 @@
       document.body.classList.remove('globe-engine');
       const appApi = app();
       if (appApi?.S) {
-        appApi.S.renderer = 'raster';
+        appApi.S.renderer = 'vector';
         appApi.syncMapPicker?.();
       }
       appApi?.draw?.();
@@ -984,7 +990,7 @@
     refreshTerrain,
     sync,
     setBasemap: (layer) => applyBasemap(layer, true),
-    globeLayerFor,
+    globeLayerFor, supportsLayer,
     focus,
     fit,
     fitPoints,

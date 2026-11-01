@@ -51,11 +51,18 @@ if (!artifacts.length) {
 }
 
 const config = JSON.parse(readFileSync(join(ROOT, 'src-tauri', 'tauri.conf.json'), 'utf8'));
+const extensions = (entry) => (entry.ext || []).map(ext => ext.replace(/^\./, ''));
+// The single-dot suffix is the one macOS resolves; the compound one is kept for
+// files older builds wrote and for the Windows and Linux packages.
 const association = (config.bundle?.fileAssociations || []).find(entry =>
-  (entry.ext || []).some(ext => ext.replace(/^\./, '') === 'northstar.json')
+  extensions(entry).includes('northstar')
 );
 if (!association) {
-  console.error('tauri.conf.json does not declare the .northstar.json association.');
+  console.error('tauri.conf.json does not declare the .northstar association.');
+  process.exit(1);
+}
+if (!extensions(association).includes('northstar.json')) {
+  console.error('tauri.conf.json dropped the .northstar.json association older builds wrote.');
   process.exit(1);
 }
 
@@ -87,8 +94,8 @@ console.log('Now complete the interactive checks in docs/packaged-verification.m
 const interactiveChecks = [
   'native Open and Save-a-Copy dialogs',
   ...(PLATFORM === 'macos'
-    ? ['macOS: use File > Open Project; direct .northstar.json double-click is not supported (docs/file-association.md)']
-    : ['double-click a .northstar.json project from Finder or Explorer']),
+    ? ['macOS: double-click a .northstar project; a compound .northstar.json needs File > Open Project (docs/file-association.md)']
+    : ['double-click a .northstar project from Finder or Explorer']),
   'restore window size, position and state after relaunch',
   'native menu actions and map shortcuts',
   'system print dialog with the selected-points report',

@@ -1,5 +1,46 @@
 # Release notes
 
+## 0.1.13 — offline tiles, one 2D engine, a macOS association that works
+
+The map keeps its tiles on disk. `src-tauri/src/tilecache.rs` stores every raster,
+terrain and overlay tile under the app data folder, keyed by URL, capped at 1 GiB
+with least-recently-used eviction, and the page asks for a tile through the
+`northstar-tile://` scheme so the webview never touches the folder. Only https
+URLs on the tile hosts the picker offers are fetched. Vector basemaps keep their
+direct URLs for now: their requests go through `fetch`, which has not been
+measured on a custom scheme under WebKit.
+
+The 2D map is one engine. Every basemap, raster tiles included, is drawn by
+MapLibre GL through the Leaflet bridge, so the separate Leaflet raster engine and
+its button are gone and the picker offers **2D map** and **3D globe**. The globe
+now hands back to 2D with a message when a basemap has no equivalent there,
+instead of quietly drawing a different one.
+
+Measurement and angle tags stay on screen while zooming. Their rebuild stamp
+included the map zoom, so every frame of a zoom tore the marker layers down and
+rebuilt them; they now hold through the animation and rebuild once when it
+settles.
+
+Files open by double-click on macOS. The bundle declares `.northstar` as well as
+the older `.northstar.json`, and LaunchServices resolves the single-dot suffix to
+Northstar, which the compound one never did on this system. `.northstar.json`
+files still open from **File > Open Project…**, and **Save a copy…** now writes
+the single-dot name so the file it produces is the one Finder opens. The Windows
+and Linux metadata name both suffixes.
+
+Two switches moved. Address lookup on a map click is a Settings → Map option
+instead of always on, and the parcel-lines switch now lives in the Overlays menu
+next to the parcel source it belongs to.
+
+The offline work ships with measured budgets: 507 ms to load a ten thousand
+waypoint project, 7 ms to rebuild the hit index, 2.2 ms for the median frame,
+with every non-local request blocked. `npm test` enforces the ceilings.
+
+macOS and Windows builds remain unsigned. Notarisation and Authenticode both need
+paid certificates, which are out of scope for a personal build, so macOS shows
+the unidentified-developer warning once. The updater is signed separately with
+the Tauri key and works.
+
 ## 0.1.12 — Linux releases are back
 
 The Linux job returns to the release workflow, so a tag now publishes the `.deb`
@@ -86,15 +127,15 @@ unchanged from 0.1.7.
 - `npm test` runs the browser and Rust suites.
 - Linux `.deb` and AppImage builds, with an RTKLIB bundle built from the pinned
   archive on the release runner.
-- The bundle declares `.northstar.json` for Windows and Linux package metadata.
+- The bundle declares `.northstar` and the older `.northstar.json`, and the Windows and Linux package metadata name both.
 
 ### macOS file association
 
-On macOS, the bundle declares and registers a custom Northstar UTI, but
-LaunchServices resolves a `.northstar.json` sample as `public.json`. A Finder
-double-click or a bare `open sample.northstar.json` therefore does not reach
-Northstar. Use **File > Open Project…**, or open the app explicitly with the
-file. The custom UTI resolves correctly for a single-dot `.northstar` control
-file, which isolates the failure to the compound suffix. The exact variants,
-commands and observed results are in
-[file-association.md](file-association.md).
+The bundle declares `.northstar` as well as the older `.northstar.json`. On macOS
+26.6.2 LaunchServices resolves a `.northstar` sample to
+`com.emrisca.northstar.project` and to Northstar, so Finder double-click and a
+bare `open` reach the app. A compound `.northstar.json` still resolves to
+`public.json` whatever the declaration says, so those files open with
+**File > Open Project…** or an explicit `open -a`. **Save a copy…** writes the
+single-dot name for that reason. [file-association.md](file-association.md)
+records the probe output and the variants that failed.

@@ -2,11 +2,40 @@
 
 ## Current result
 
-The app declares a `.northstar.json` document type and a custom UTI. On macOS
-26.6.2 (build 25G83), LaunchServices still resolves a sample
-`.northstar.json` as `public.json`. A bare `open sample.northstar.json` goes to
-the system JSON handler, not Northstar. Direct Finder double-click therefore
-does not work.
+The app declares `.northstar` and `.northstar.json` on one document type with
+the custom UTI `com.emrisca.northstar.project`. On macOS 26.6.2 (build 25G83) a
+sample `.northstar` resolves to that UTI and to Northstar.app, so Finder
+double-click reaches the app. A compound `.northstar.json` still resolves to
+`public.json` before the declaration is consulted, so those files open through
+**File > Open Project** or an explicit `open -a`.
+
+Measured on 1 November 2026 against the debug bundle, after `lsregister -f` and
+`lsregister -gc`:
+
+```text
+sample: .tmp/association-test.northstar
+NSWorkspace: .../bundle/macos/Northstar.app
+LSCopyDefaultApplicationURLForURL: .../bundle/macos/Northstar.app
+URLResourceValues.contentType: com.emrisca.northstar.project
+default for com.emrisca.northstar.project: .../Northstar.app
+
+sample: .tmp/association-test.northstar.json
+NSWorkspace: /Applications/Xcode.app
+URLResourceValues.contentType: public.json
+```
+
+The declaration in the built bundle:
+
+```text
+CFBundleTypeExtensions = [ "northstar", "northstar.json" ]
+LSItemContentTypes     = [ "com.emrisca.northstar.project" ]
+CFBundleTypeRole       = Editor
+LSHandlerRank          = Owner
+```
+
+`project_path` in `src-tauri/src/lib.rs` accepts both suffixes, the open and
+save dialogs filter on both, and **Save a copy…** writes the single-dot name so
+the file it produces is the one Finder opens.
 
 This is not an unverified claim. The built debug bundle was re-registered and
 queried after a local/user LaunchServices rescan:
@@ -122,5 +151,8 @@ unchanged.
   and `application/json` respectively); direct opening on those platforms is a
   release check, not a macOS claim.
 
-Do not describe this as Finder double-click support. The OS resolves the
-compound suffix to `public.json` before Northstar's declaration is considered.
+Finder double-click is supported for `.northstar`, and for `.northstar` only:
+the OS resolves the compound suffix to `public.json` before Northstar's
+declaration is considered, which is why the app still names its own files under
+the Northstar folder `.northstar.json` — those are listed in **Recent
+projects**, so the suffix never has to reach LaunchServices.

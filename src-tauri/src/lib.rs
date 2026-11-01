@@ -21,6 +21,7 @@ mod noaa;
 mod preflight;
 mod rtklib;
 mod store;
+mod tilecache;
 mod update;
 
 pub use failure::Failure;
@@ -124,20 +125,69 @@ fn boot_payload(store: &Store, open_path: Option<&Path>) -> Value {
     })
 }
 
-/// A file argument is a project when it exists and ends in `.json`. The app
-/// accepts `.northstar.json` from the file association and still opens project
-/// files exported by older builds; the store refuses a file that is not a
-/// Northstar document.
+/// A file argument is a project when it exists and ends in `.northstar` or
+/// `.json`. The single-dot suffix is the one macOS resolves to this app:
+/// LaunchServices maps a compound `.northstar.json` to `public.json` before the
+/// declaration is consulted, so the bundle declares both, `.northstar` is what
+/// Save a copy writes, and `.json` still opens what older builds exported. The
+/// store refuses a file that is not a Northstar document.
 fn project_path(value: &OsStr) -> Option<PathBuf> {
     let path = PathBuf::from(value);
     if !path.is_file() {
         return None;
     }
-    let extension = path.extension().and_then(|extension| extension.to_str());
-    extension
-        .map(|extension| extension.eq_ignore_ascii_case("json"))
-        .filter(|is_json| *is_json)
-        .map(|_| path)
+    let extension = path.extension().and_then(|extension| extension.to_str())?;
+    let opens = extension.eq_ignore_ascii_case("northstar") || extension.eq_ignore_ascii_case("json");
+    opens.then_some(path)
+}
+
+/// Answer one `northstar-tile://` request from the cache, fetching on a miss.
+///
+/// The webview asks for a tile by naming it, never by opening the folder: the
+/// scheme is the only door, and `tilecache::check` decides which URLs may come
+/// through it.
+fn serve_tile(app: &tauri::AppHandle, uri: &str) -> tauri::http::Response<Vec<u8>> {
+    let url = match tilecache::target(uri) {
+        Ok(url) => url,
+        Err(reason) => return tile_response(400, &reason, "text/plain"),
+    };
+    let opened = app_data(app)
+        .map_err(|error| error.to_string())
+        .and_then(|root| {
+            tilecache::TileCache::open(root.join("tiles"), tilecache::DEFAULT_CAP_BYTES)
+                .map_err(|error| error.to_string())
+        });
+    let cache = match opened {
+        Ok(cache) => cache,
+        Err(reason) => return tile_response(500, &reason, "text/plain"),
+    };
+    let (bytes, mime) = match cache.get(&url) {
+        Some(hit) => (hit.bytes, hit.mime),
+        None => match tilecache::download(&url) {
+            Ok((bytes, mime)) => {
+                if let Err(error) = cache.put(&url, &bytes, &mime) {
+                    logging::note(app, "tiles", &format!("cache write failed: {error}"));
+                }
+                (bytes, mime)
+            }
+            Err(reason) => return tile_response(502, &reason, "text/plain"),
+        },
+    };
+    tauri::http::Response::builder()
+        .status(200)
+        .header("Content-Type", mime)
+        .header("Cache-Control", "no-store")
+        .header("Access-Control-Allow-Origin", "*")
+        .body(bytes)
+        .unwrap_or_else(|_| tile_response(500, "the tile response could not be built", "text/plain"))
+}
+
+fn tile_response(status: u16, body: &str, mime: &str) -> tauri::http::Response<Vec<u8>> {
+    tauri::http::Response::builder()
+        .status(status)
+        .header("Content-Type", mime)
+        .body(body.as_bytes().to_vec())
+        .unwrap_or_default()
 }
 
 fn emit_open(window: &tauri::WebviewWindow, path: &Path) {
@@ -196,7 +246,7 @@ fn project_pick(app: tauri::State<Files>, handle: tauri::AppHandle) -> Result<Op
     let picked = handle
         .dialog()
         .file()
-        .add_filter("Northstar project", &["json"])
+        .add_filter("Northstar project", &["northstar", "json"])
         .set_title("Open a Northstar project")
         .blocking_pick_file();
     let Some(picked) = picked else {
@@ -233,11 +283,11 @@ fn project_save_as(
         .get("workspaceName")
         .and_then(Value::as_str)
         .unwrap_or("Survey workspace");
-    let suggested = format!("{}.northstar.json", store::slug(name));
+    let suggested = format!("{}.northstar", store::slug(name));
     let picked = handle
         .dialog()
         .file()
-        .add_filter("Northstar project", &["json"])
+        .add_filter("Northstar project", &["northstar", "json"])
         .set_title("Save a copy of this project")
         .set_file_name(&suggested)
         .blocking_save_file();
@@ -520,6 +570,13 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_window_state::Builder::default().build())
+        .register_asynchronous_uri_scheme_protocol(tilecache::SCHEME, |app, request, responder| {
+            let uri = request.uri().to_string();
+            let app = app.app_handle().clone();
+            std::thread::spawn(move || {
+                responder.respond(serve_tile(&app, &uri));
+            });
+        })
         .setup(move |app| {
             logging::init(app.handle());
             let root = app_data(app.handle())?;
@@ -720,6 +777,11 @@ mod tests {
         std::fs::write(&text, "not a project").unwrap();
         assert_eq!(project_path(text.as_os_str()), None);
         assert_eq!(project_path(OsStr::new("missing.northstar.json")), None);
+
+        let single = root.join("survey.northstar");
+        std::fs::write(&single, "{}").unwrap();
+        assert_eq!(project_path(single.as_os_str()), Some(single.clone()));
+        assert_eq!(project_path(OsStr::new("missing.northstar")), None);
         let _ = std::fs::remove_dir_all(&root);
     }
 
