@@ -139,6 +139,10 @@
       return;
     }
     $('#xyImportFile').textContent = pending.fileName;
+    const title = $('#xyImportTitle');
+    if (title) title.textContent = options && options.title ? options.title : 'Points from a table';
+    const copy = $('#xyImportCopy');
+    if (copy) copy.textContent = (options && options.copy) || 'has no latitude/longitude columns. Pick the coordinate columns and the CRS they are in.';
     const preferred = (window.northstarApp && window.northstarApp.settings && window.northstarApp.settings.projectCrs) || 'EPSG:4326';
     if (crsPicker) crsPicker.set(preferred, true);
     fillColumns();

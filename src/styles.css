@@ -136,8 +136,8 @@ body,.app,button,input,select,textarea{font-family:Roboto,Arial,sans-serif}
 
 /* Map interactions use the same crosshair for Select, Line, and Point modes. */
 #mapWrap #mapCanvas,#mapWrap #vectorMap,#mapWrap #vectorMap *,#mapWrap .leaflet-container,#mapWrap .leaflet-tile{cursor:crosshair!important}
-#mapWrap[data-active-tool="select"],#mapWrap[data-active-tool="line"],#mapWrap[data-active-tool="point"],#mapWrap[data-active-tool="select"] * ,#mapWrap[data-active-tool="line"] * ,#mapWrap[data-active-tool="point"] *{cursor:crosshair!important}
-#mapWrap[data-active-tool="select"] #mapCanvas,#mapWrap[data-active-tool="line"] #mapCanvas,#mapWrap[data-active-tool="point"] #mapCanvas,#mapWrap[data-active-tool="select"] #vectorMap,#mapWrap[data-active-tool="line"] #vectorMap,#mapWrap[data-active-tool="point"] #vectorMap,#mapWrap[data-active-tool="select"] #vectorMap * ,#mapWrap[data-active-tool="line"] #vectorMap * ,#mapWrap[data-active-tool="point"] #vectorMap *{cursor:crosshair!important}
+#mapWrap[data-active-tool="select"],#mapWrap[data-active-tool="line"],#mapWrap[data-active-tool="polyline"],#mapWrap[data-active-tool="point"],#mapWrap[data-active-tool="select"] * ,#mapWrap[data-active-tool="line"] * ,#mapWrap[data-active-tool="polyline"] * ,#mapWrap[data-active-tool="point"] *{cursor:crosshair!important}
+#mapWrap[data-active-tool="select"] #mapCanvas,#mapWrap[data-active-tool="line"] #mapCanvas,#mapWrap[data-active-tool="polyline"] #mapCanvas,#mapWrap[data-active-tool="point"] #mapCanvas,#mapWrap[data-active-tool="select"] #vectorMap,#mapWrap[data-active-tool="line"] #vectorMap,#mapWrap[data-active-tool="polyline"] #vectorMap,#mapWrap[data-active-tool="point"] #vectorMap,#mapWrap[data-active-tool="select"] #vectorMap * ,#mapWrap[data-active-tool="line"] #vectorMap * ,#mapWrap[data-active-tool="polyline"] #vectorMap * ,#mapWrap[data-active-tool="point"] #vectorMap *{cursor:crosshair!important}
 
 /* Keep toolbar and header symbols on consistent, optically centered boxes. */
 .tool{gap:3px}

@@ -87,5 +87,6 @@ body.globe-engine .parcel-toggle { display: none !important; }
 /* The globe is a native 3D surface; keep its cursor explicit for each tool. */
 body.globe-engine #mapWrap[data-active-tool="point"] #cesiumMap canvas,
 body.globe-engine #mapWrap[data-active-tool="line"] #cesiumMap canvas,
+body.globe-engine #mapWrap[data-active-tool="polyline"] #cesiumMap canvas,
 body.globe-engine #mapWrap[data-active-tool="select"] #cesiumMap canvas { cursor: crosshair; }
 body.globe-engine .map-status { border-top-color: #2a3444; }

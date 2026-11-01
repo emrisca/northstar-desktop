@@ -107,7 +107,7 @@ after(async () => {
   if (server) await new Promise((resolve) => server.close(resolve));
 });
 
-async function openPage() {
+async function openPage(project = projectState()) {
   const context = await browser.newContext({
     viewport: { width: 1400, height: 900 },
     serviceWorkers: 'block'
@@ -119,10 +119,10 @@ async function openPage() {
   await page.evaluate(({ project, settings }) => {
     localStorage.setItem('northstar-project', JSON.stringify(project));
     localStorage.setItem('northstar-settings', JSON.stringify(settings));
-  }, { project: projectState(), settings: SETTINGS });
+  }, { project, settings: SETTINGS });
   await page.reload();
   await page.waitForFunction(() => !!window.northstarApp && !!window.northstarGeodesy);
-  await page.waitForSelector('#propertyMeasurePreview');
+  await page.waitForSelector('#mapCanvas');
   return { context, page, pageErrors };
 }
 
@@ -275,6 +275,122 @@ for (const method of ['area', 'equal', 'cut', 'draw']) {
     await runPartition(method);
   });
 }
+
+test('line tool completes pairs and polyline closes then restarts', async () => {
+  const project = { ...projectState(), lines: [], measurements: [], selected: null };
+  const { context, page } = await openPage(project);
+  try {
+    assert.equal((await page.locator('[data-tool="line"] small').innerText()).trim(), 'Line');
+    assert.equal((await page.locator('[data-tool="polyline"] small').innerText()).trim(), 'Poly line');
+
+    await page.click('[data-tool="line"]');
+    let state = await page.evaluate(() => {
+      const A = window.northstarApp;
+      A.linePick('p1');
+      A.linePick('p2');
+      return {
+        tool: A.S.tool,
+        lines: A.S.lines.map(line => ({ ids: line.ids, closed: line.closed }))
+      };
+    });
+    assert.equal(state.tool, 'line');
+    assert.deepEqual(state.lines, [{ ids: ['p1', 'p2'], closed: false }]);
+
+    state = await page.evaluate(() => {
+      const A = window.northstarApp;
+      A.linePick('p3');
+      A.linePick('p4');
+      return {
+        tool: A.S.tool,
+        lines: A.S.lines.map(line => ({ ids: line.ids, closed: line.closed }))
+      };
+    });
+    assert.equal(state.tool, 'line');
+    assert.deepEqual(state.lines, [
+      { ids: ['p1', 'p2'], closed: false },
+      { ids: ['p3', 'p4'], closed: false }
+    ]);
+
+    await page.click('[data-tool="polyline"]');
+    state = await page.evaluate(() => {
+      const A = window.northstarApp;
+      A.linePick('p1');
+      A.linePick('p2');
+      A.linePick('p3');
+      A.linePick('p1');
+      return {
+        tool: A.S.tool,
+        lines: A.S.lines.map(line => ({ ids: line.ids, closed: line.closed }))
+      };
+    });
+    assert.equal(state.tool, 'polyline');
+    assert.deepEqual(state.lines.at(-1), { ids: ['p1', 'p2', 'p3'], closed: true });
+
+    state = await page.evaluate(() => {
+      const A = window.northstarApp;
+      A.linePick('p4');
+      return {
+        tool: A.S.tool,
+        lines: A.S.lines.map(line => ({ ids: line.ids, closed: line.closed }))
+      };
+    });
+    assert.equal(state.tool, 'polyline');
+    assert.deepEqual(state.lines.at(-1), { ids: ['p4'], closed: false });
+  } finally {
+    await context.close();
+  }
+});
+
+test('DXF point import and export round-trip', async () => {
+  const project = { ...projectState(), points: [], lines: [], measurements: [], selected: null };
+  const { context, page } = await openPage(project);
+  try {
+    const dxf = [
+      '0', 'SECTION', '2', 'ENTITIES',
+      '0', 'POINT', '8', 'Puntos', '10', '9.776', '20', '26.306', '30', '0',
+      '0', 'TEXT', '8', 'Numero', '10', '9.276', '20', '26.556', '30', '0', '40', '0.25', '1', '1',
+      '0', 'POINT', '8', 'Puntos', '10', '8.811', '20', '19.252', '30', '0',
+      '0', 'TEXT', '8', 'Numero', '10', '8.311', '20', '19.502', '30', '0', '40', '0.25', '1', '2',
+      '0', 'ENDSEC', '0', 'EOF'
+    ].join('\r\n');
+
+    const parsed = await page.evaluate(text => window.northstarDXF.parse(text), dxf);
+    assert.deepEqual(parsed.map(point => point.name), ['1', '2']);
+    assert.deepEqual(parsed.map(point => [point.x, point.y]), [
+      [9.776, 26.306],
+      [8.811, 19.252]
+    ]);
+
+    const roundTrip = await page.evaluate(points => {
+      const text = window.northstarDXF.build(points);
+      return { text, points: window.northstarDXF.parse(text) };
+    }, parsed);
+    assert.equal(roundTrip.points.length, 2);
+    assert.deepEqual(roundTrip.points.map(point => point.name), ['1', '2']);
+    assert.ok(Math.abs(roundTrip.points[0].x - 9.776) < 1e-6);
+    assert.match(roundTrip.text, /^0\r\nSECTION/);
+    assert.match(roundTrip.text, /POINT/);
+    assert.equal(await page.locator('[data-export-format="dxf"]').count(), 1);
+
+    await page.setInputFiles('#fileInput', {
+      name: 'points.DXF',
+      mimeType: 'application/dxf',
+      buffer: Buffer.from(dxf)
+    });
+    await page.waitForSelector('#xyImportDialog[open]');
+    assert.equal(await page.locator('#xyImportTitle').innerText(), 'Points from DXF');
+    assert.match(await page.locator('#xyImportCopy').innerText(), /X\/Y point coordinates/);
+
+    await page.click('#xyImportRun');
+    await page.waitForFunction(() => window.northstarApp.S.points.length === 2);
+    assert.deepEqual(
+      await page.evaluate(() => window.northstarApp.S.points.map(point => point.name)),
+      ['1', '2']
+    );
+  } finally {
+    await context.close();
+  }
+});
 
 test('header units drive property and partition measurements', async () => {
   const { context, page, pageErrors } = await openPage();
