@@ -603,6 +603,10 @@
       app()?.select?.(entityId.replace(/^line-fill:/, '').replace(/^line:/, ''));
       return;
     }
+    if (entityId.startsWith('measure:')) {
+      app()?.select?.(entityId.slice(8));
+      return;
+    }
     if (S.tool === 'select') app()?.select?.(null);
   }
 

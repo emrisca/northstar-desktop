@@ -1,5 +1,24 @@
 # Release notes
 
+## 0.1.11 — selectable measures, Linux release paused
+
+Measures are now objects you can select. The Select tool hit-tests the amber
+value tag first and then the dashed line within a few pixels, so clicking a
+measure opens the properties panel with its length, endpoints and snapped-end
+count, and renames or removes it from there. Delete and Backspace remove it the
+same way they remove a waypoint or a line. A parcel side keeps its own tolerance
+and priority, so a measure drawn along a boundary side does not take over side
+selection; the tag stays the way back to it. The globe's pick handler was
+extended the same way, so a click on a measure in the 3D view selects it instead
+of clearing the selection.
+
+The Linux release job is paused while its packaging is fixed. Releases now carry
+macOS and Windows installers only, and `latest.json` lists no Linux entry, so an
+existing Linux install is not offered this version. Nothing else changed on that
+path: `npm run build:linux` and `scripts/build-linux.sh` still produce the `.deb`
+and AppImage locally, and `docs/packaged-verification.md` keeps the Linux check
+for when the job returns.
+
 ## 0.1.10 — measures on the 3D globe
 
 Measures now render on the Cesium globe, so switching renderers no longer makes
