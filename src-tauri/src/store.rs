@@ -160,6 +160,7 @@ impl Store {
             None => self.path_for_name(&project_name(&document)),
         };
         write_atomic(&path, &serialize(&document))?;
+        self.stamp_newest(&path);
         self.entry_for(&path)
     }
 
@@ -170,6 +171,37 @@ impl Store {
         let document = migrate(document.clone())?;
         write_atomic(path, &serialize(&document))?;
         self.entry_for(path)
+    }
+
+    /// Two saves inside the same millisecond would tie in `list`, which then
+    /// falls back to the project names and shows the older file first. Move this
+    /// file one millisecond past the newest project when that happened, so the
+    /// recent list keeps following the saves. Best effort on purpose: a stamp is
+    /// a nicety and must not fail a save.
+    fn stamp_newest(&self, path: &Path) {
+        if path.parent() != Some(self.projects_dir().as_path()) {
+            return;
+        }
+        let Ok(own) = fs::metadata(path).and_then(|meta| meta.modified()) else {
+            return;
+        };
+        let newest = fs::read_dir(self.projects_dir())
+            .into_iter()
+            .flatten()
+            .flatten()
+            .filter(|entry| entry.path() != path)
+            .filter_map(|entry| fs::metadata(entry.path()).ok()?.modified().ok())
+            .max();
+        let Some(newest) = newest else {
+            return;
+        };
+        if newest < own {
+            return;
+        }
+        let stamp = newest + std::time::Duration::from_millis(1);
+        if let Ok(file) = fs::OpenOptions::new().write(true).open(path) {
+            let _ = file.set_times(fs::FileTimes::new().set_modified(stamp));
+        }
     }
 
     pub fn delete(&self, id: &str) -> Result<()> {
@@ -523,6 +555,28 @@ mod tests {
         let listed = store.list();
         assert_eq!(listed[0].id, latest.id);
         assert!(listed.iter().any(|entry| entry.id == first.id));
+    }
+
+    #[test]
+    fn a_save_next_to_a_same_millisecond_file_still_comes_first() {
+        use std::time::{Duration, SystemTime};
+        // The Linux runner saved two projects inside one millisecond, which tied
+        // them in the recent list and left the older project first.
+        let fixture = Fixture::new("tie");
+        let store = fixture.store();
+        let first = store.save(None, &web_project()).unwrap();
+        let mut second = web_project();
+        second["workspaceName"] = json!("Second lot");
+        let tied = store.save(None, &second).unwrap();
+        let stamp = SystemTime::now() + Duration::from_secs(5);
+        for entry in [&first, &tied] {
+            let file = fs::OpenOptions::new().write(true).open(&entry.path).unwrap();
+            let _ = file.set_times(fs::FileTimes::new().set_modified(stamp));
+        }
+        let mut third = web_project();
+        third["workspaceName"] = json!("Third lot");
+        let saved = store.save(None, &third).unwrap();
+        assert_eq!(store.list()[0].id, saved.id);
     }
 
     #[test]
