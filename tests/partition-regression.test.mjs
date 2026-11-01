@@ -54,8 +54,6 @@ const SETTINGS = {
   theme: 'light',
   accent: 'blue',
   terrainProfile: false,
-  areaUnit: 'ft2',
-  lenUnit: 'ft',
   projectCrs: 'EPSG:4326',
   measureAreaUnit: 'ft2',
   measureLenUnit: 'ft',
@@ -115,6 +113,8 @@ async function openPage() {
     serviceWorkers: 'block'
   });
   const page = await context.newPage();
+  const pageErrors = [];
+  page.on('pageerror', error => pageErrors.push(error.message));
   await page.goto(baseUrl);
   await page.evaluate(({ project, settings }) => {
     localStorage.setItem('northstar-project', JSON.stringify(project));
@@ -123,7 +123,7 @@ async function openPage() {
   await page.reload();
   await page.waitForFunction(() => !!window.northstarApp && !!window.northstarGeodesy);
   await page.waitForSelector('#propertyMeasurePreview');
-  return { context, page };
+  return { context, page, pageErrors };
 }
 
 async function previewAreas(page) {
@@ -233,7 +233,6 @@ async function runPartition(method) {
     await page.click('#partitionParcelBtn');
     await page.waitForSelector('#partitionDialog[open]');
     await page.selectOption('#partitionMethod', method);
-    await page.selectOption('#partitionAreaUnit', 'ft2');
 
     if (method === 'area') {
       await page.fill('#partitionTarget', '1200');
@@ -276,3 +275,36 @@ for (const method of ['area', 'equal', 'cut', 'draw']) {
     await runPartition(method);
   });
 }
+
+test('header units drive property and partition measurements', async () => {
+  const { context, page, pageErrors } = await openPage();
+  try {
+    assert.equal(await page.inputValue('#headerLengthUnit'), 'ft');
+    assert.equal(await page.inputValue('#headerAreaUnit'), 'ft2');
+
+    await page.selectOption('#headerLengthUnit', 'm');
+    await page.selectOption('#headerAreaUnit', 'm2');
+    const settings = await page.evaluate(() => ({
+      length: window.northstarApp.settings.measureLenUnit,
+      area: window.northstarApp.settings.measureAreaUnit
+    }));
+    assert.deepEqual(settings, { length: 'm', area: 'm2' });
+    assert.deepEqual(pageErrors, []);
+
+    await page.evaluate(() => window.northstarApp.select('line-test'));
+    await page.waitForFunction(() => /m²/.test(document.querySelector('#propertyMeasurePreview')?.textContent || ''));
+    assert.match(await page.locator('#propertyMeasurePreview').innerText(), /m²/);
+    assert.equal(await page.locator('#measurementUnit').count(), 0);
+    assert.equal(await page.locator('#partitionAreaUnit').count(), 0);
+
+    await page.click('#partitionParcelBtn');
+    await page.waitForSelector('#partitionDialog[open]');
+    await page.selectOption('#partitionMethod', 'area');
+    await page.fill('#partitionTarget', '100');
+    await page.click('#partitionPreviewBtn');
+    await page.waitForFunction(() => /passes all constraints/.test(document.querySelector('#partitionPreview')?.textContent || ''));
+    assert.match(await page.locator('#partitionPreview').innerText(), /m²/);
+  } finally {
+    await context.close();
+  }
+});
