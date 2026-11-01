@@ -2,9 +2,9 @@
 #
 # The shell is Rust plus a WebView2 host, so Windows needs the MSVC Rust host,
 # the Visual Studio C++ tools and the Windows SDK. This checks those, installs
-# the pinned npm packages, runs the Rust tests, and leaves the release
-# executable in src-tauri\target\release. Bundling is still off until batch 7,
-# so this does not produce an installer.
+# the pinned npm packages, runs the full frontend and Rust test command, and
+# leaves the release executable and installer artifacts in
+# src-tauri\target\release.
 #
 # Usage:
 #   powershell -ExecutionPolicy Bypass -File scripts\build-windows.ps1
@@ -77,17 +77,22 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 if (-not $SkipTests) {
-    Write-Host 'Running the Rust tests...'
-    & cargo test --manifest-path src-tauri\Cargo.toml
+    Write-Host 'Running the frontend and Rust tests...'
+    & $npm.Source test
     if ($LASTEXITCODE -ne 0) {
-        Fail "cargo test failed with exit code $LASTEXITCODE."
+        Fail "npm test failed with exit code $LASTEXITCODE."
     }
 }
 
-Write-Host 'Building the release executable...'
+Write-Host 'Building the release executable and installer...'
 & $npm.Source run build
 if ($LASTEXITCODE -ne 0) {
     Fail "npm run build failed with exit code $LASTEXITCODE."
+}
+
+& $npm.Source run verify:package
+if ($LASTEXITCODE -ne 0) {
+    Fail "npm run verify:package failed with exit code $LASTEXITCODE."
 }
 
 $exe = Join-Path $root 'src-tauri\target\release\northstar.exe'

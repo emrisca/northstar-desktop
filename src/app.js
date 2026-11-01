@@ -340,4 +340,33 @@ function syncOfflineBanner(){const offline=!navigator.onLine,banner=$('#offlineB
 function liftBootVeil(){const veil=$('#bootVeil');if(!veil)return;veil.classList.add('done');setTimeout(()=>veil.remove(),240)}
 setTimeout(liftBootVeil,120);
 setTimeout(liftBootVeil,8000);
+function printableReport(points){
+  const rows=points.map((p,i)=>'<tr><td>'+(i+1)+'</td><td>'+escapeText(p.name)+'</td><td>'+p.lat.toFixed(7)+'</td><td>'+p.lon.toFixed(7)+'</td></tr>').join('');
+  const lines=(S.lines||[]).map(l=>'<li>'+escapeText(l.name)+' · '+l.ids.length+' vertices · '+(l.closed?'closed':'open')+'</li>').join('')||'<li>No lines.</li>';
+  const measurements=(S.measurements||[]).map(m=>'<li>'+(m.kind==='length'?'Distance':'Area')+': '+escapeText(measurementText(m))+'</li>').join('')||'<li>No saved measurements.</li>';
+  return '<!doctype html><html><head><meta charset="utf-8"><title>'+escapeText(S.workspaceName||'Northstar survey report')+'</title><style>'+
+    '@page{size:letter;margin:16mm}body{font:10px Arial,Helvetica,sans-serif;color:#1f2937;margin:0}h1{font-size:20px;margin:0 0 4px}h2{font-size:13px;margin:18px 0 7px;border-bottom:1px solid #cbd5e1;padding-bottom:4px}p{margin:4px 0;color:#475569}table{width:100%;border-collapse:collapse;margin-top:6px}th{text-align:left;font-size:8px;text-transform:uppercase;letter-spacing:.06em;color:#64748b;border-bottom:1px solid #cbd5e1;padding:5px 4px}td{padding:4px;border-bottom:1px solid #e2e8f0}ul{margin:4px 0 0 16px;padding:0}li{margin:3px 0}.foot{margin-top:18px;font-size:8px;color:#64748b}'+
+    '</style></head><body><h1>Survey Report</h1><p><b>'+escapeText(S.workspaceName||'Northstar project')+'</b></p><p>WGS 84 · EPSG:4326 · '+escapeText(new Date().toLocaleString())+'</p>'+
+    '<h2>Lines</h2><ul>'+lines+'</ul><h2>Saved measurements</h2><ul>'+measurements+'</ul>'+
+    '<h2>Selected waypoints ('+points.length+')</h2><table><thead><tr><th>#</th><th>Waypoint</th><th>Latitude (DD)</th><th>Longitude (DD)</th></tr></thead><tbody>'+rows+'</tbody></table>'+
+    '<p class="foot">Northstar Field CAD · project reference, not a legal survey.</p></body></html>';
+}
+function printReport(points){
+  points=Array.isArray(points)&&points.length?points:S.points;
+  if(!points.length){message('Add at least one waypoint before printing');return false}
+  const previous=document.getElementById('northstarPrintFrame');
+  if(previous)previous.remove();
+  const frame=document.createElement('iframe');
+  frame.id='northstarPrintFrame';
+  frame.setAttribute('aria-hidden','true');
+  frame.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0';
+  document.body.appendChild(frame);
+  const doc=frame.contentWindow.document;
+  doc.open();doc.write(printableReport(points));doc.close();
+  const cleanup=()=>setTimeout(()=>frame.remove(),500);
+  frame.contentWindow.addEventListener('afterprint',cleanup,{once:true});
+  setTimeout(()=>{try{frame.contentWindow.focus();frame.contentWindow.print()}catch(error){cleanup();message('The system print dialog could not open: '+error)}},250);
+  return true;
+}
+window.northstarApp.printReport=printReport;
 })();

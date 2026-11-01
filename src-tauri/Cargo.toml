@@ -1,6 +1,6 @@
 [package]
 name = "northstar"
-version = "0.1.6"
+version = "0.1.7"
 description = "Northstar Field CAD desktop shell"
 edition = "2021"
 rust-version = "1.77"
@@ -31,3 +31,4 @@ ureq = { version = "2.10", features = ["json", "gzip"] }
 zip = { version = "2", default-features = false, features = ["deflate"] }
 tauri-plugin-updater = "2"
 tauri-plugin-notification = "2"
+tauri-plugin-window-state = "2"

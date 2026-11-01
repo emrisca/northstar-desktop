@@ -15,6 +15,8 @@ mod convert;
 mod correct;
 mod failure;
 mod install;
+mod logging;
+mod menu;
 mod noaa;
 mod preflight;
 mod rtklib;
@@ -24,17 +26,22 @@ mod update;
 pub use failure::Failure;
 use serde::Serialize;
 use serde_json::{json, Value};
+use std::ffi::OsStr;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use store::{Entry, Store};
+use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 use update::{update_check, update_install, update_state};
-use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 
 /// Where the window keeps the project it is editing. `None` means the project
 /// has never been written, so the first save chooses its own name.
 struct Open {
     path: Option<PathBuf>,
 }
+
+/// macOS delivers an `open` event before the Tauri setup hook has built the
+/// window. Keep that path until setup (or the bridge) can consume it.
+static PENDING_OPEN: Mutex<Option<PathBuf>> = Mutex::new(None);
 
 struct Files {
     store: Store,
@@ -92,7 +99,7 @@ fn bundle_path(app: &tauri::AppHandle) -> Option<PathBuf> {
 
 /// The document the interface starts with: the settings file, the project it
 /// last had open, and the recent list for the chooser.
-fn boot_payload(store: &Store) -> Value {
+fn boot_payload(store: &Store, open_path: Option<&Path>) -> Value {
     let settings = store.settings();
     let last = settings
         .get("lastProject")
@@ -113,11 +120,35 @@ fn boot_payload(store: &Store) -> Value {
         "project": project,
         "projectPath": path,
         "dataFolder": store.root().display().to_string(),
+        "openPath": open_path.map(|path| path.display().to_string()).unwrap_or_default(),
     })
 }
 
+/// A file argument is a project when it exists and ends in `.json`. The app
+/// accepts `.northstar.json` from the file association and still opens project
+/// files exported by older builds; the store refuses a file that is not a
+/// Northstar document.
+fn project_path(value: &OsStr) -> Option<PathBuf> {
+    let path = PathBuf::from(value);
+    if !path.is_file() {
+        return None;
+    }
+    let extension = path.extension().and_then(|extension| extension.to_str());
+    extension
+        .map(|extension| extension.eq_ignore_ascii_case("json"))
+        .filter(|is_json| *is_json)
+        .map(|_| path)
+}
+
 fn emit_open(window: &tauri::WebviewWindow, path: &Path) {
-    let _ = window.emit("northstar://open-path", path.display().to_string());
+    let path = serde_json::to_string(&path.to_string_lossy()).unwrap_or_else(|_| "null".into());
+    // The bridge is a plain script, not a module, so evaluate the call instead
+    // of asking it to load the Tauri event API as a second global. A macOS
+    // open event can arrive before the bridge has parsed; keep the path for
+    // `ready_` in that case instead of dropping it.
+    let _ = window.eval(&format!(
+        "if (window.northstarOpenPath) {{ window.northstarOpenPath({path}); }} else {{ window.__NORTHSTAR_PENDING_OPEN__ = {path}; }}"
+    ));
 }
 
 #[tauri::command]
@@ -138,7 +169,11 @@ fn project_open(app: tauri::State<Files>, id: String) -> Result<Opened, String> 
 }
 
 #[tauri::command]
-fn project_open_path(app: tauri::State<Files>, path: String) -> Result<Opened, String> {
+fn project_open_path(
+    app: tauri::State<Files>,
+    handle: tauri::AppHandle,
+    path: String,
+) -> Result<Opened, String> {
     let path = PathBuf::from(path);
     let text = app
         .store
@@ -147,6 +182,7 @@ fn project_open_path(app: tauri::State<Files>, path: String) -> Result<Opened, S
     *app.open.lock().unwrap() = Open {
         path: Some(path.clone()),
     };
+    logging::note(&handle, "project", &format!("opened {}", path.display()));
     Ok(Opened {
         path: path.display().to_string(),
         text,
@@ -169,7 +205,7 @@ fn project_pick(app: tauri::State<Files>, handle: tauri::AppHandle) -> Result<Op
     let path = picked
         .into_path()
         .map_err(|error| format!("that file cannot be read: {error}"))?;
-    project_open_path(app, path.display().to_string()).map(Some)
+    project_open_path(app, handle, path.display().to_string()).map(Some)
 }
 
 #[tauri::command]
@@ -295,6 +331,46 @@ fn settings_save(app: tauri::State<Files>, document: Value) -> Result<Value, Str
         .map_err(|error| error.to_string())
 }
 
+/// The About dialog reads this rather than hard-coding a version in the
+/// interface. The notices are compiled in, so they are present in a packaged
+/// app even though the repository's markdown file is not an asset.
+#[tauri::command]
+fn app_info(app: tauri::AppHandle, files: tauri::State<Files>) -> Value {
+    let mut rtklib = rtklib::bundle_version(files.bundle.as_deref());
+    if rtklib.is_empty() {
+        rtklib = rtklib::VERSION.to_string();
+    }
+    json!({
+        "version": env!("CARGO_PKG_VERSION"),
+        "platform": preflight::platform_key(),
+        "rtklib": rtklib,
+        "logDir": logging::directory(&app).display().to_string(),
+        "logFile": logging::log_path(&app).display().to_string(),
+        "crashFile": logging::crash_path(&app).display().to_string(),
+        "notices": include_str!("../../THIRD_PARTY_NOTICES.md"),
+    })
+}
+
+/// A frontend exception is written to the same log as a Rust panic, which is
+/// what makes a Windows report actionable without asking for a console dump.
+#[tauri::command]
+fn log_frontend_error(
+    app: tauri::AppHandle,
+    source: String,
+    message: String,
+    detail: String,
+) -> Result<(), String> {
+    let source: String = source.chars().take(64).collect();
+    let message: String = message.chars().take(4000).collect();
+    let detail: String = detail.chars().take(16000).collect();
+    logging::record(&app, &source, &message, &detail)
+}
+
+#[tauri::command]
+fn open_logs(app: tauri::AppHandle) -> Result<(), String> {
+    project_reveal(logging::directory(&app).display().to_string())
+}
+
 /// The readiness report the post-processing card shows. The blocking work runs
 /// off the command thread so the window keeps painting while NOAA is asked.
 #[tauri::command]
@@ -418,6 +494,9 @@ async fn noaa_base(
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let startup_path = std::env::args_os()
+        .skip(1)
+        .find_map(|argument| project_path(&argument));
     let mut builder = tauri::Builder::default();
 
     // A second launch is how a person opens a project from the file manager
@@ -429,10 +508,9 @@ pub fn run() {
             let path = argv
                 .iter()
                 .skip(1)
-                .find(|argument| argument.ends_with(".json"))
-                .cloned();
+                .find_map(|argument| project_path(OsStr::new(argument)));
             if let (Some(window), Some(path)) = (app.get_webview_window("main"), path) {
-                emit_open(&window, Path::new(&path));
+                emit_open(&window, &path);
             }
         }));
     }
@@ -441,10 +519,13 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_notification::init())
-        .setup(|app| {
+        .plugin(tauri_plugin_window_state::Builder::default().build())
+        .setup(move |app| {
+            logging::init(app.handle());
             let root = app_data(app.handle())?;
             let store = Store::open(root).map_err(|error| error.to_string())?;
-            let boot = boot_payload(&store);
+            let startup_path = startup_path.or_else(|| PENDING_OPEN.lock().unwrap().take());
+            let boot = boot_payload(&store, startup_path.as_deref());
             // Manage the update state before the window can run update.js.
             app.manage(update::UpdateHolder::new());
             let script = format!(
@@ -465,6 +546,12 @@ pub fn run() {
             // interface looks frozen for a moment. Ask for focus as it opens.
             let _ = window.set_focus();
 
+            // The other half of the pre-setup event race: an open request can
+            // arrive after setup starts but before the window exists.
+            if let Some(path) = PENDING_OPEN.lock().unwrap().take() {
+                emit_open(&window, &path);
+            }
+
             // A project dragged onto the window opens in this window instead
             // of starting a second copy on the same files.
             let drop_window = window.clone();
@@ -472,9 +559,9 @@ pub fn run() {
                 if let tauri::WindowEvent::DragDrop(tauri::DragDropEvent::Drop { paths, .. }) = event {
                     if let Some(path) = paths
                         .iter()
-                        .find(|path| path.extension().and_then(|e| e.to_str()) == Some("json"))
+                        .find_map(|path| project_path(path.as_os_str()))
                     {
-                        emit_open(&drop_window, path);
+                        emit_open(&drop_window, &path);
                     }
                 }
             });
@@ -486,6 +573,7 @@ pub fn run() {
                 installer: install::Installer::default(),
                 open: Mutex::new(Open { path: None }),
             });
+            menu::install(app.handle())?;
             update::watch(app.handle().clone());
             Ok(())
         })
@@ -512,10 +600,40 @@ pub fn run() {
             rtklib_install_status,
             rtklib_install,
             rtklib_convert,
-            rtklib_run
+            rtklib_run,
+            app_info,
+            log_frontend_error,
+            open_logs
         ])
-        .run(tauri::generate_context!())
-        .expect("the Northstar window failed to start");
+        .build(tauri::generate_context!())
+        .expect("the Northstar window failed to start")
+        .run(|app_handle, event| {
+            #[cfg(target_os = "macos")]
+            {
+                if let tauri::RunEvent::Opened { urls } = event {
+                    logging::note(
+                        app_handle,
+                        "launch",
+                        &format!("received open event for {} URL(s)", urls.len()),
+                    );
+                    let path = urls
+                        .iter()
+                        .filter_map(|url| url.to_file_path().ok())
+                        .find_map(|path| project_path(path.as_os_str()));
+                    if let Some(path) = path {
+                        if let Some(window) = app_handle.get_webview_window("main") {
+                            emit_open(&window, &path);
+                        } else {
+                            *PENDING_OPEN.lock().unwrap() = Some(path);
+                        }
+                    }
+                }
+            }
+            #[cfg(not(target_os = "macos"))]
+            {
+                let _ = (app_handle, event);
+            }
+        });
 }
 
 #[cfg(test)]
@@ -584,6 +702,25 @@ mod tests {
         )
         .map(|body| body.deserialize::<Value>().unwrap())
         .map_err(|error| error)
+    }
+
+    #[test]
+    fn only_an_existing_json_file_is_a_project_argument() {
+        let root = std::env::temp_dir().join(format!(
+            "northstar-project-argument-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let project = root.join("survey.northstar.json");
+        std::fs::write(&project, "{}").unwrap();
+        assert_eq!(project_path(project.as_os_str()), Some(project.clone()));
+
+        let text = root.join("notes.txt");
+        std::fs::write(&text, "not a project").unwrap();
+        assert_eq!(project_path(text.as_os_str()), None);
+        assert_eq!(project_path(OsStr::new("missing.northstar.json")), None);
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[test]

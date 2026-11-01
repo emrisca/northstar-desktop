@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Northstar",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "identifier": "com.emrisca.northstar",
   "build": {
     "frontendDist": "../src"
@@ -22,6 +22,20 @@
     "active": true,
     "targets": "all",
     "createUpdaterArtifacts": true,
+    "fileAssociations": [
+      {
+        "ext": ["northstar.json"],
+        "name": "Northstar project",
+        "description": "Northstar Field CAD project",
+        "mimeType": "application/json",
+        "role": "Editor",
+        "rank": "Owner",
+        "exportedType": {
+          "identifier": "com.emrisca.northstar.project",
+          "conformsTo": ["public.json"]
+        }
+      }
+    ],
     "macOS": {
       "signingIdentity": "-"
     },

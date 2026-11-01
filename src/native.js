@@ -103,6 +103,40 @@
 
   var invoke = window.__TAURI_INTERNALS__.invoke.bind(window.__TAURI_INTERNALS__);
 
+  /* ------------------------------------------------------------- the errors */
+
+  function logFrontend(source, message, detail) {
+    try {
+      invoke('log_frontend_error', {
+        source: String(source).slice(0, 64),
+        message: String(message).slice(0, 4000),
+        detail: String(detail || '').slice(0, 16000)
+      }).catch(function () {});
+    } catch (error) {}
+  }
+
+  window.addEventListener('error', function (event) {
+    var error = event.error;
+    logFrontend(
+      'window.error',
+      event.message || (error && error.message) || 'Script error',
+      error && error.stack
+        ? error.stack
+        : event.filename
+          ? event.filename + ':' + event.lineno + ':' + event.colno
+          : ''
+    );
+  });
+
+  window.addEventListener('unhandledrejection', function (event) {
+    var reason = event.reason;
+    logFrontend(
+      'unhandledrejection',
+      reason && reason.message ? reason.message : String(reason),
+      reason && reason.stack ? reason.stack : ''
+    );
+  });
+
   /* ------------------------------------------------------- mirror the writes
    *
    * The interface writes localStorage on every change and reads it eagerly.
@@ -403,8 +437,117 @@
     create: newProject
   };
 
+  /* ---------------------------------------------------------- the about box */
+
+  function aboutDialog() {
+    var dialog = document.getElementById('northstarAbout');
+    if (dialog) return dialog;
+    dialog = document.createElement('dialog');
+    dialog.id = 'northstarAbout';
+    dialog.setAttribute('aria-labelledby', 'northstarAboutTitle');
+    dialog.innerHTML =
+      '<div class="dialog-head"><div><span class="eyebrow">ABOUT</span>' +
+      '<h2 id="northstarAboutTitle">Northstar Field CAD</h2></div>' +
+      '<button class="dialog-close" type="button" data-close-about aria-label="Close">×</button></div>' +
+      '<p class="dialog-copy" data-about-version></p>' +
+      '<div class="settings-section"><h3>Build</h3>' +
+      '<div class="coord-pair"><span>Platform</span><b data-about-platform></b></div>' +
+      '<div class="coord-pair"><span>RTKLIB</span><b data-about-rtklib></b></div>' +
+      '<div class="coord-pair"><span>Project files</span><b data-about-association></b></div></div>' +
+      '<p class="settings-hint" data-about-association-note></p>' +
+      '<div class="settings-section"><h3>Logs</h3>' +
+      '<p class="settings-hint">Errors and crash reports are written here. The folder opens in your file manager.</p>' +
+      '<p class="settings-hint"><code data-about-logs></code></p>' +
+      '<p class="settings-hint"><code data-about-crash></code></p>' +
+      '<div class="dialog-actions"><button class="secondary-button" id="aboutOpenLogs" type="button">Open log folder</button></div></div>' +
+      '<div class="settings-section"><h3>Third-party notices</h3>' +
+      '<pre data-about-notices style="max-height:220px;overflow:auto;white-space:pre-wrap;font:10px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace"></pre></div>' +
+      '<div class="dialog-actions"><button class="primary-button" type="button" data-close-about>Close</button></div>';
+    document.body.appendChild(dialog);
+    dialog.addEventListener('click', function (event) {
+      if (event.target === dialog) dialog.close();
+    });
+    dialog.querySelectorAll('[data-close-about]').forEach(function (button) {
+      button.addEventListener('click', function () {
+        dialog.close();
+      });
+    });
+    return dialog;
+  }
+
+  function showAbout() {
+    invoke('app_info').then(function (info) {
+      var dialog = aboutDialog();
+      dialog.querySelector('[data-about-version]').textContent =
+        'Version ' + info.version + ' · ' + (info.platform || 'desktop');
+      dialog.querySelector('[data-about-platform]').textContent = info.platform || 'desktop';
+      dialog.querySelector('[data-about-rtklib]').textContent = info.rtklib || 'not found';
+      var mac = String(info.platform || '').indexOf('macos') === 0;
+      dialog.querySelector('[data-about-association]').textContent = mac
+        ? 'File > Open Project'
+        : '.northstar.json';
+      dialog.querySelector('[data-about-association-note]').textContent = mac
+        ? 'macOS LaunchServices resolves the compound .northstar.json suffix as public.json, so direct Finder double-click is not available. Use File > Open Project, or open the app explicitly with the file.'
+        : 'The bundle declares the .northstar.json suffix for direct opening.';
+      dialog.querySelector('[data-about-logs]').textContent = info.logFile || info.logDir || '';
+      dialog.querySelector('[data-about-crash]').textContent = info.crashFile || '';
+      dialog.querySelector('[data-about-notices]').textContent = info.notices || '';
+      dialog.querySelector('#aboutOpenLogs').onclick = function () {
+        invoke('open_logs').catch(function (error) {
+          window.northstarApp &&
+            window.northstarApp.message('The log folder did not open: ' + error);
+        });
+      };
+      if (!dialog.open) dialog.showModal();
+    }).catch(function (error) {
+      window.northstarApp &&
+        window.northstarApp.message('The About box could not be read: ' + error);
+    });
+  }
+
+  /** The native menu calls this. Everything it reaches is the same function
+   *  the in-window Project and Tools menus already use. */
+  window.northstarMenu = function (action) {
+    if (action === 'about') {
+      showAbout();
+    } else if (action === 'settings') {
+      document.getElementById('settingsBtn')?.click();
+    } else if (action === 'file.open') {
+      chooseProject();
+    } else if (action === 'file.recent') {
+      openProjects();
+    } else if (action === 'file.new') {
+      newProject();
+    } else if (action === 'file.save') {
+      saveNow().then(function (entry) {
+        if (entry) window.northstarApp && window.northstarApp.message('Saved ' + entry.path);
+      });
+    } else if (action === 'file.save-copy') {
+      saveCopy();
+    } else if (action === 'file.print') {
+      if (window.northstarApp && window.northstarApp.printReport) {
+        window.northstarApp.printReport();
+      } else {
+        window.northstarApp && window.northstarApp.message('The report is not ready yet.');
+      }
+    } else if (action === 'logs') {
+      invoke('open_logs').catch(function (error) {
+        window.northstarApp && window.northstarApp.message('The log folder did not open: ' + error);
+      });
+    }
+  };
+
   function ready_() {
     ready = true;
+    // An OS open event can arrive before this bridge is parsed. The shell
+    // stores it on the window; consume it once the interface is ready.
+    if (window.__NORTHSTAR_PENDING_OPEN__) {
+      var pendingOpen = window.__NORTHSTAR_PENDING_OPEN__;
+      delete window.__NORTHSTAR_PENDING_OPEN__;
+      setTimeout(function () {
+        window.northstarOpenPath(pendingOpen);
+      }, 50);
+    }
     var menu = document.getElementById('northStarMenuPanel');
     if (menu) {
       menu.addEventListener('click', function (event) {
@@ -445,6 +588,18 @@
     }
 
     document.getElementById('workspaceSaveLabel') && setStatus(store.path ? 'Saved' : 'Not saved yet');
+
+    // A file association launch passes the project through the boot payload.
+    // The window is already showing the last project, so this opens the named
+    // file once the interface's importer has finished binding.
+    if (boot && boot.openPath) {
+      markImported();
+      flushSettings();
+      setTimeout(function () {
+        window.northstarOpenPath(boot.openPath);
+      }, 50);
+      return;
+    }
 
     if (legacy) {
       var document_ = parse(legacy);

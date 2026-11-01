@@ -24,7 +24,7 @@ Every behaviour in the web build, grouped by where the person meets it. The file
 ## 3. Drawing and editing
 
 - Point tool, which stays active for several points, and Add point, which takes a typed name and a coordinate in five formats. `app.js`, `coords.js`
-- Line tool that connects existing waypoints in order, rings the last vertex, draws a snapping rubber band with a live distance, and closes into a parcel when you click the first vertex of three or more. `app.js`
+- Line tool that connects two waypoints, and Poly line that keeps adding connected waypoints, rings the last vertex, draws a snapping rubber band with a live distance, and closes into a parcel when you click the first vertex of three or more. `app.js`
 - Rectangle tool through Terra Draw, one undoable feature that saves with the project. `app.js`
 - Select tool, with waypoint dragging that updates coordinates and recalculates dependent parcels and measurements on release, as one undo step. `app.js`
 - Boundary side editing: delete a side (a closed parcel reopens, an open line splits or disappears), and add a break by clicking a side with the Point tool. `app.js`
@@ -71,10 +71,10 @@ Every behaviour in the web build, grouped by where the person meets it. The file
 
 ## 8. Import and export
 
-- Import of CSV, TXT, GeoJSON, GPX and KML points. `app.js`
+- Import of CSV, TXT, GeoJSON, GPX, KML and DXF points. `app.js`, `dxf.js`
 - Table import for files without latitude and longitude columns: pick easting and northing columns, an optional name column, and the CRS, with a preview of the first converted row. `crsimport.js`
 - Project export and import as `.northstar.json`, covering the object tree, basemaps, the historical year, saved jobs and accepted results. `app.js`, `postprocess.js`
-- Selected-point export as PDF report, KML, GPX, GeoJSON or CSV, with a chooser for which waypoints to include. `app.js`
+- Selected-point export as PDF report, DXF, KML, GPX, GeoJSON, CSV or LandXML, with a chooser for which waypoints to include. `app.js`, `dxf.js`
 - CSV export with UTM columns. `app.js`
 
 ## 9. Search
@@ -108,7 +108,7 @@ Every behaviour in the web build, grouped by where the person meets it. The file
 
 ## 12. RTKLIB
 
-- RTKLIB 2.4.3 b34 ships inside the build, one folder per platform, with the BSD licence and a `BUNDLED.json` recording the version and a SHA-256 per file. `scripts/bundle-rtklib.sh`, `src-tauri/resources/rtklib`
+- RTKLIB 2.4.3 b34 ships inside the build, one folder per platform, with the BSD licence and a `BUNDLED.json` recording the version and a SHA-256 per file. macOS and Windows bundles are committed; Linux is built by `scripts/bundle-rtklib-linux.sh` in the Linux release runner. `scripts/bundle-rtklib.sh`, `src-tauri/resources/rtklib`
 - Engine lookup in this order: the bundle, a copy the installer placed in the data folder, `PATH`, then the folders the web build searched. `rtklib.rs`, `preflight`
 - Recovery installer for a build with no bundle: the one pinned official archive, SHA-256 verified, written only inside the app's data folder, with a stated method (official Windows binaries, or a source build with `make` and a C compiler). `postprocess.js`, `rtklib_install`
 - Install progress with percentage and step text, polled from a background job. `postprocess.js`, `rtklib_install`
@@ -148,12 +148,21 @@ The web build keeps all of this in `localStorage`. The desktop build keeps the p
 
 ## 16. Window and keyboard
 
-- Header with the logo, editable workspace name, Project menu, Tools menu, undo and redo, theme toggle, calculator, and Settings. `app.js`, `index.html`
+- Header with the logo, editable workspace name, Project menu, Tools menu, undo and redo, theme toggle, calculator, and Settings. The desktop shell also installs a native application menu with File, View and Help; its commands dispatch to the same bridge functions. `app.js`, `index.html`, `src-tauri/src/menu.rs`
 - Left panel with the object tree, properties and waypoint list, resizable by two drag bars, collapsible per section with a list of hidden sections. `app.js`
 - Shortcuts: V, P, L for tools, C to close a line, D to partition, Escape to return to Select, Delete or Backspace to remove the selection, and the undo and redo modifiers. `app.js`
 - Save status and version at the bottom left of the window. `app.js`
 
-## 17. Working offline
+## 17. Desktop shell and logs
+
+- Window size, position, maximized and full-screen state are restored by `tauri-plugin-window-state`. `src-tauri/src/lib.rs`
+- The bundle declares a `.northstar.json` document type; Windows and Linux packages declare the suffix, and a second launch or dropped file opens in the running window. On macOS the custom UTI is registered, but LaunchServices classifies the compound suffix as `public.json`; macOS direct double-click and bare `open` therefore do not reach Northstar, while **File > Open Project…** and an explicit `open -a` do. `src-tauri/src/lib.rs`, `src-tauri/tauri.conf.json`, [file-association.md](file-association.md)
+- About reports the version, platform, RTKLIB version, exact log paths and third-party notices. `src/native.js`, `src-tauri/src/lib.rs`
+- `northstar.log` records startup and frontend exceptions; `crash.log` records Rust panics with a backtrace. Help > Open Log Folder reveals the platform log directory. `src-tauri/src/logging.rs`
+- File > Print Selected-Points Report builds the report in the interface and opens the system print dialog. `src/app.js`
+- `npm test` runs the browser regression suite and the Rust suite; `npm run verify:package` checks the built artifact, association and RTKLIB resources. `package.json`, `scripts/verify-package.mjs`
+
+## 18. Working offline
 
 - The web build caches its shell and mapping libraries with a service worker. The desktop build removes the service worker because the files are already local, and loads its libraries from disk in batch 1.
 - The blank grid stays fully editable without a connection, and the offline banner offers it when tile requests fail. `app.js`
