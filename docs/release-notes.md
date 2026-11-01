@@ -1,5 +1,13 @@
 # Release notes
 
+## 0.1.8 — Linux build fix
+
+The 0.1.7 Linux job stopped while building RTKLIB: `rnx2rtkp` links
+`lib/iers/gcc/iers.a`, and the bundle script had not built that library. The
+script now builds the IERS library with `gfortran` first, and the Linux runner
+installs `gfortran` and `libfuse2`. macOS and Windows artifacts are otherwise
+unchanged from 0.1.7.
+
 ## 0.1.7 — desktop hardening
 
 - Window size, position, maximized and full-screen state restore between

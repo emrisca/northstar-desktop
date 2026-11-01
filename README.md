@@ -48,10 +48,10 @@ powershell -ExecutionPolicy Bypass -File scripts\build-windows.ps1
 
 ### Linux
 
-Linux needs the WebKitGTK 4.1 and GTK development packages, `make`, a C compiler and the usual Rust and Node toolchains. On Debian or Ubuntu:
+Linux needs the WebKitGTK 4.1 and GTK development packages, `make`, C and Fortran compilers, and the usual Rust and Node toolchains. On Debian or Ubuntu:
 
 ```sh
-sudo apt install libwebkit2gtk-4.1-dev libgtk-3-dev libappindicator3-dev librsvg2-dev patchelf build-essential curl unzip
+sudo apt install libwebkit2gtk-4.1-dev libgtk-3-dev libappindicator3-dev librsvg2-dev patchelf build-essential gfortran libfuse2 curl unzip
 npm ci
 scripts/build-linux.sh
 ```
@@ -70,7 +70,7 @@ TAURI_SIGNING_PRIVATE_KEY_PASSWORD=the-key-password
 npm run build
 ```
 
-The same two values are the GitHub Actions secrets `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` for the release workflow. Pushing a tag such as `v0.1.7` builds macOS, Windows and Linux on hosted runners, publishes the installers, and writes `latest.json` beside them. The source repository is public, so the app reads that file without a token.
+The same two values are the GitHub Actions secrets `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` for the release workflow. Pushing a tag such as `v0.1.8` builds macOS, Windows and Linux on hosted runners, publishes the installers, and writes `latest.json` beside them. The source repository is public, so the app reads that file without a token.
 
 ## How it is put together
 

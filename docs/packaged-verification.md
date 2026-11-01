@@ -118,7 +118,9 @@ npm test
 npm run verify:package
 ```
 
-The Linux bundle is built in the release runner from the pinned RTKLIB archive
+The script builds RTKLIB's `lib/iers/gcc/iers.a` with `gfortran` before
+linking `rnx2rtkp`; the release runner installs `gfortran` for that step. The
+Linux bundle is built in the release runner from the pinned RTKLIB archive
 because its binaries depend on that runner's glibc and WebKit stack. The job
 must leave a `.deb` and an `.AppImage`, and the AppImage must launch with the
 bundled `rnx2rtkp` and `convbin`.

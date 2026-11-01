@@ -10,12 +10,16 @@
 # Usage:
 #   scripts/bundle-rtklib-linux.sh
 #
-# The script needs curl (or wget), unzip, make and a C compiler. It writes
-# src-tauri/resources/rtklib/linux/ with both tools, the licence and the
-# BUNDLED.json record the readiness check reads.
+# The script needs curl (or wget), unzip, make, a C compiler and gfortran. It
+# writes src-tauri/resources/rtklib/linux/ with both tools, the licence and
+# the BUNDLED.json record the readiness check reads.
 set -eu
 
 REPO=$(cd "$(dirname "$0")/.." && pwd)
+if ! command -v gfortran >/dev/null 2>&1; then
+  echo "gfortran is required to build RTKLIB's IERS library." >&2
+  exit 1
+fi
 URL="https://github.com/tomojitakasu/RTKLIB/releases/download/v2.4.3-b34/RTKLIB_2.4.3_b34.zip"
 EXPECTED="5f2eacee05e9f90cdc3604e48a906222c8832000056be9000f7ee3627bb18874"
 WORK=$(mktemp -d "${TMPDIR:-/tmp}/northstar-rtklib.XXXXXX")
@@ -52,6 +56,9 @@ if [ -z "$ROOT" ] || [ ! -d "$ROOT/app/consapp" ]; then
   exit 1
 fi
 
+# rnx2rtkp links RTKLIB's IERS Fortran library. The archive does not carry a
+# prebuilt iers.a, so build it before the applications that link it.
+make -C "$ROOT/lib/iers/gcc"
 make -C "$ROOT/app/consapp/rnx2rtkp/gcc"
 make -C "$ROOT/app/consapp/convbin/gcc"
 

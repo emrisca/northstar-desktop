@@ -21,9 +21,9 @@ elif [ "$#" -gt 0 ]; then
   exit 1
 fi
 
-for command in node npm cargo rustc make cc pkg-config; do
+for command in node npm cargo rustc make cc gfortran pkg-config; do
   if ! command -v "$command" >/dev/null 2>&1; then
-    echo "Missing $command. Install Node 20+, Rust, build-essential and pkg-config." >&2
+    echo "Missing $command. Install Node 20+, Rust, build-essential, gfortran and pkg-config." >&2
     exit 1
   fi
 done
