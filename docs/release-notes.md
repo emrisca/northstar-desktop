@@ -1,5 +1,38 @@
 # Release notes
 
+## 0.1.14 — past releases, and the map picks its renderer
+
+**Settings → Update** can go backwards. The update tab lists the releases
+published on GitHub with their version, date and the installer for this machine.
+Choosing one downloads it and hands it to the system installer, which replaces
+the app the way a fresh install does — the way back from a build that broke
+something. This path sits deliberately outside the Tauri updater, which only
+moves forward: nothing here records a rollback, so the next **Check for updates**
+still offers the newest build once the older one is running.
+
+The 2D map has two renderers again and nobody has to choose between them.
+`src/renderers.js` sorts each basemap by what it is: the raster layers (street,
+satellite, topo, the historical scans) draw through Leaflet's tile layer, and the
+styled vector layers (OpenMapTiles, OpenTopo, Positron, Dark Matter and the OHM
+styles) through MapLibre GL. `refreshBaseLayer` builds the layer for whatever the
+picker holds, so going from a satellite image to a vector style changes engine in
+the same click that changes the map. A vector style that never loads falls back
+once to the raster street layer with a message instead of leaving an empty canvas.
+
+A raster basemap now counts as ready when its first tile lands. Leaflet's `load`
+event waits for every queued tile and never arrives while a provider keeps one
+request pending, which left the status on "Updating map…" and the previous layer
+on screen; the switch finishes on the first tile and drops the old layer at once.
+One failed tile no longer raises the map error banner either — only an empty map
+does.
+
+The map policy gains `https://coast.noaa.gov`, so NOAA coastal imagery and parcel
+sources load instead of being blocked by the webview.
+
+`npm run test:maps` drives all twenty-one picker entries against the live
+providers. It caught the empty OpenMapTiles switch above and now passes every
+entry, apart from one upstream 404 inside the OpenHistoricalMap tile set.
+
 ## 0.1.13 — offline tiles, one 2D engine, a macOS association that works
 
 The map keeps its tiles on disk. `src-tauri/src/tilecache.rs` stores every raster,

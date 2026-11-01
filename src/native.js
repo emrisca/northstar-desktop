@@ -790,6 +790,8 @@
   /* The updater is Rust-side because the interface has no bundler. The window
    * polls `state` for progress instead of listening to a plugin event. */
   window.northstarUpdate = {
+    releases: function () { return invoke('update_releases'); },
+    installRelease: function (tag) { return invoke('update_install_release', { tag: tag }); },
     state: function () {
       return invoke('update_state');
     },

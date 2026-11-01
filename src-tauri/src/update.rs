@@ -295,3 +295,209 @@ pub fn watch(app: AppHandle) {
         }
     });
 }
+
+/// Past releases, so a build that breaks a feature can be replaced by the one
+/// that worked. Tauri's updater only moves forward, so this bypasses it: the
+/// list comes from the project's release page, and installing downloads that
+/// tag's installer for this platform and opens it in the system installer.
+const RELEASES_URL: &str =
+    "https://api.github.com/repos/emrisca/northstar-desktop/releases?per_page=30";
+const DOWNLOAD_ROOT: &str = "https://github.com/emrisca/northstar-desktop/releases/download/";
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PastRelease {
+    tag: String,
+    version: String,
+    name: String,
+    date: Option<String>,
+    asset: Option<String>,
+    size: Option<u64>,
+    current: bool,
+}
+
+fn fetch_releases() -> Result<Vec<serde_json::Value>, String> {
+    let response = ureq::get(RELEASES_URL)
+        .set("User-Agent", "northstar-desktop")
+        .set("Accept", "application/vnd.github+json")
+        .call()
+        .map_err(|error| format!("GitHub could not be reached: {error}"))?;
+    let body: serde_json::Value = response
+        .into_json()
+        .map_err(|error| format!("the release list could not be read: {error}"))?;
+    body.as_array()
+        .cloned()
+        .ok_or_else(|| "the release list was not readable".to_string())
+}
+
+/// The installer to hand the system for this platform, newest format first.
+/// Only a URL under this project's release path is accepted, so a release entry
+/// cannot point the download somewhere else.
+fn pick_asset(assets: &[serde_json::Value]) -> Option<(String, String, u64)> {
+    let wanted: &[&str] = if cfg!(target_os = "macos") {
+        &[".dmg", ".app.tar.gz"]
+    } else if cfg!(target_os = "windows") {
+        &["-setup.exe", ".msi"]
+    } else {
+        &[".appimage", ".deb"]
+    };
+    for suffix in wanted {
+        for asset in assets {
+            let name = asset
+                .get("name")
+                .and_then(|value| value.as_str())
+                .unwrap_or_default();
+            let url = asset
+                .get("browser_download_url")
+                .and_then(|value| value.as_str())
+                .unwrap_or_default();
+            let size = asset.get("size").and_then(|value| value.as_u64()).unwrap_or(0);
+            if name.to_ascii_lowercase().ends_with(suffix) && url.starts_with(DOWNLOAD_ROOT) {
+                return Some((name.to_string(), url.to_string(), size));
+            }
+        }
+    }
+    None
+}
+
+#[tauri::command]
+pub async fn update_releases(app: AppHandle) -> Result<Vec<PastRelease>, String> {
+    let current = app.package_info().version.to_string();
+    let list = tauri::async_runtime::spawn_blocking(fetch_releases)
+        .await
+        .map_err(|error| format!("the release list could not be read: {error}"))??;
+    let mut past = Vec::new();
+    for release in list {
+        if release
+            .get("draft")
+            .and_then(|value| value.as_bool())
+            .unwrap_or(false)
+        {
+            continue;
+        }
+        let Some(tag) = release.get("tag_name").and_then(|value| value.as_str()) else {
+            continue;
+        };
+        let assets = release
+            .get("assets")
+            .and_then(|value| value.as_array())
+            .cloned()
+            .unwrap_or_default();
+        let picked = pick_asset(&assets);
+        let version = tag.trim_start_matches('v').to_string();
+        past.push(PastRelease {
+            tag: tag.to_string(),
+            current: version == current,
+            version,
+            name: release
+                .get("name")
+                .and_then(|value| value.as_str())
+                .unwrap_or(tag)
+                .to_string(),
+            date: release
+                .get("published_at")
+                .and_then(|value| value.as_str())
+                .map(|value| value.to_string()),
+            asset: picked.as_ref().map(|(name, _, _)| name.clone()),
+            size: picked.map(|(_, _, size)| size),
+        });
+    }
+    Ok(past)
+}
+
+#[tauri::command]
+pub async fn update_install_release(tag: String) -> Result<String, String> {
+    let tag = tag.trim().to_string();
+    if tag.is_empty() {
+        return Err("choose a release first".into());
+    }
+    let path = tauri::async_runtime::spawn_blocking(move || download_release(&tag))
+        .await
+        .map_err(|error| format!("the download could not be started: {error}"))??;
+    Ok(path.display().to_string())
+}
+
+fn download_release(tag: &str) -> Result<std::path::PathBuf, String> {
+    let list = fetch_releases()?;
+    let release = list
+        .iter()
+        .find(|release| release.get("tag_name").and_then(|value| value.as_str()) == Some(tag))
+        .ok_or_else(|| format!("{tag} is not on the release page"))?;
+    let assets = release
+        .get("assets")
+        .and_then(|value| value.as_array())
+        .cloned()
+        .unwrap_or_default();
+    let (name, url, _) =
+        pick_asset(&assets).ok_or_else(|| format!("{tag} has no installer for this platform"))?;
+    let path = std::env::temp_dir().join(format!("northstar-{name}"));
+    let response = ureq::get(&url)
+        .set("User-Agent", "northstar-desktop")
+        .call()
+        .map_err(|error| format!("the installer could not be downloaded: {error}"))?;
+    let mut file = std::fs::File::create(&path)
+        .map_err(|error| format!("the installer could not be saved: {error}"))?;
+    std::io::copy(&mut response.into_reader(), &mut file)
+        .map_err(|error| format!("the installer could not be saved: {error}"))?;
+    open_installer(&path)?;
+    Ok(path)
+}
+
+/// Hand the file to the system the way a download in a browser would: the
+/// installer window opens and the person finishes it.
+fn open_installer(path: &std::path::Path) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    let opened = std::process::Command::new("open").arg(path).spawn();
+    #[cfg(target_os = "windows")]
+    let opened = std::process::Command::new("cmd")
+        .args(["/C", "start", ""])
+        .arg(path)
+        .spawn();
+    #[cfg(all(unix, not(target_os = "macos")))]
+    let opened = std::process::Command::new("xdg-open").arg(path).spawn();
+    opened
+        .map(|_| ())
+        .map_err(|error| format!("the installer could not be opened: {error}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::pick_asset;
+    use serde_json::json;
+
+    fn asset(name: &str) -> serde_json::Value {
+        json!({
+            "name": name,
+            "browser_download_url": format!(
+                "https://github.com/emrisca/northstar-desktop/releases/download/v0.1.12/{name}"
+            ),
+            "size": 1024,
+        })
+    }
+
+    #[test]
+    fn picks_this_platform_installer_and_refuses_foreign_urls() {
+        let assets = vec![
+            asset("Northstar_0.1.12_x64-setup.exe"),
+            asset("Northstar_0.1.12_aarch64.dmg"),
+            asset("Northstar_0.1.12_amd64.AppImage"),
+        ];
+        let (name, url, size) = pick_asset(&assets).expect("an installer");
+        if cfg!(target_os = "macos") {
+            assert_eq!(name, "Northstar_0.1.12_aarch64.dmg");
+        } else if cfg!(target_os = "windows") {
+            assert_eq!(name, "Northstar_0.1.12_x64-setup.exe");
+        } else {
+            assert_eq!(name, "Northstar_0.1.12_amd64.AppImage");
+        }
+        assert!(url.starts_with(super::DOWNLOAD_ROOT));
+        assert_eq!(size, 1024);
+
+        let elsewhere = vec![json!({
+            "name": "Northstar.dmg",
+            "browser_download_url": "https://example.test/Northstar.dmg",
+            "size": 1,
+        })];
+        assert!(pick_asset(&elsewhere).is_none());
+    }
+}

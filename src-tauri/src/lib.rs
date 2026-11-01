@@ -32,7 +32,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use store::{Entry, Store};
 use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
-use update::{update_check, update_install, update_state};
+use update::{update_check, update_install, update_install_release, update_releases, update_state};
 
 /// Where the window keeps the project it is editing. `None` means the project
 /// has never been written, so the first save chooses its own name.
@@ -649,6 +649,8 @@ pub fn run() {
             update_state,
             update_check,
             update_install,
+            update_releases,
+            update_install_release,
             preflight,
             noaa_nearby,
             noaa_station,

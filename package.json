@@ -1,7 +1,7 @@
 {
   "name": "northstar-desktop",
   "private": true,
-  "version": "0.1.13",
+  "version": "0.1.14",
   "description": "Northstar Field CAD as a desktop app. The front end is plain HTML, CSS and JavaScript with no bundler; this file exists so the Tauri CLI has a home.",
   "scripts": {
     "dev": "tauri dev",
@@ -12,7 +12,8 @@
     "test:partition": "node --test tests/partition-regression.test.mjs",
     "test:rust": "cargo test --manifest-path src-tauri/Cargo.toml",
     "verify:package": "node scripts/verify-package.mjs",
-    "test:budget": "node --test tests/load-budget.test.mjs"
+    "test:budget": "node --test tests/load-budget.test.mjs",
+    "test:maps": "node --test tests/basemap-smoke.test.mjs"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.9.0",
