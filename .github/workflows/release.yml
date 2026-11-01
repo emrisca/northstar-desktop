@@ -35,7 +35,7 @@ jobs:
         with:
           tagName: v__VERSION__
           releaseName: Northstar v__VERSION__
-          releaseBody: "Download the installer below. Existing installs will offer this version from the app.\n\nmacOS: open .northstar.json with File > Open Project; direct Finder double-click is not available because LaunchServices resolves the compound suffix as public.json. Windows: the package metadata declares the .northstar.json association."
+          releaseBody: "Download the installer below. Existing installs will offer this version from the app.\n\nmacOS: open .northstar.json with File > Open Project; direct Finder double-click is not available because LaunchServices resolves the compound suffix as public.json. Windows/Linux: the package metadata declares the .northstar.json association."
           releaseDraft: false
           prerelease: false
           includeUpdaterJson: true
@@ -68,10 +68,55 @@ jobs:
         with:
           tagName: v__VERSION__
           releaseName: Northstar v__VERSION__
-          releaseBody: "Download the installer below. Existing installs will offer this version from the app.\n\nmacOS: open .northstar.json with File > Open Project; direct Finder double-click is not available because LaunchServices resolves the compound suffix as public.json. Windows: the package metadata declares the .northstar.json association."
+          releaseBody: "Download the installer below. Existing installs will offer this version from the app.\n\nmacOS: open .northstar.json with File > Open Project; direct Finder double-click is not available because LaunchServices resolves the compound suffix as public.json. Windows/Linux: the package metadata declares the .northstar.json association."
           releaseDraft: false
           prerelease: false
           includeUpdaterJson: true
           updaterJsonPreferNsis: true
+
+      - run: npm run verify:package
+
+  linux:
+    needs: windows
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install the Linux desktop build prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential gfortran libfuse2 curl unzip \
+            libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev \
+            libgtk-3-dev patchelf
+
+      - run: npm ci
+
+      - name: Build the Linux RTKLIB bundle
+        run: scripts/bundle-rtklib-linux.sh
+
+      - run: npm test
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: v__VERSION__
+          releaseName: Northstar v__VERSION__
+          releaseBody: "Download the installer below. Existing installs will offer this version from the app.\n\nmacOS: open .northstar.json with File > Open Project; direct Finder double-click is not available because LaunchServices resolves the compound suffix as public.json. Windows/Linux: the package metadata declares the .northstar.json association."
+          releaseDraft: false
+          prerelease: false
+          includeUpdaterJson: true
+          args: --bundles deb,appimage
 
       - run: npm run verify:package

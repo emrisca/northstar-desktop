@@ -1,5 +1,18 @@
 # Release notes
 
+## 0.1.12 — Linux releases are back
+
+The Linux job returns to the release workflow, so a tag now publishes the `.deb`
+and the AppImage next to the macOS and Windows installers, with their updater
+signatures and a Linux entry in `latest.json`.
+
+It failed twice for a reason that had nothing to do with packaging: the store test
+that checks the recent list saved two projects inside the same millisecond, the
+files tied on their modification stamp, and the tiebreaker put the older project
+first. A save now lands one millisecond past the newest project in the folder when
+the stamps collide, so the recent list follows the saves, and a test sets that
+collision itself instead of hoping the clock supplies one.
+
 ## 0.1.11 — selectable measures, Linux release paused
 
 Measures are now objects you can select. The Select tool hit-tests the amber
