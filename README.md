@@ -149,9 +149,12 @@ Measured over HTTP with the policy sent as a header: 109 requests, none to a CDN
 The 2D map also keeps its tiles on disk. `src-tauri/src/tilecache.rs` stores
 each raster, terrain and overlay tile under the app data folder, keyed by URL,
 with a 1 GiB cap and least-recently-used eviction. The page asks for a tile
-through the `northstar-tile://` scheme and the shell answers from that folder or
+through the `northstar-tile:` scheme and the shell answers from that folder or
 fetches once, so a basemap that has been viewed keeps drawing with networking
-off. Vector basemaps are not cached yet: their requests go through `fetch`, which
+off. The page asks in the form the platform serves — `northstar-tile://cache/?u=…` on
+macOS and Linux, `http://northstar-tile.localhost/cache/?u=…` on Windows, whose
+webview has no custom-scheme URLs — and the policy allows both. Vector basemaps
+are not cached yet: their requests go through `fetch`, which
 has not been measured on a custom scheme under WebKit.
 
 The budgets that go with it are measured rather than asserted. `tests/load-budget.test.mjs`

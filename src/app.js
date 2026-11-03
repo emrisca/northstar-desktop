@@ -92,7 +92,13 @@ function blankWheelZoom(e){
   e.preventDefault();
 }
 wrap.addEventListener('wheel',blankWheelZoom,{passive:false});
-const TILE_SCHEME='northstar-tile://cache/?u=';
+// Tauri serves a registered scheme as <scheme>:// on macOS and Linux, but as
+// http://<scheme>.localhost on Windows and Android: WebView2 has no custom
+// scheme URLs. Asking Windows for the native form reaches no handler, which is
+// why the cached raster basemaps drew nothing there while the vector styles,
+// which fetch their own URLs, were fine.
+const TILE_WINDOWS=/Windows NT/i.test(navigator.userAgent||'');
+const TILE_SCHEME=(TILE_WINDOWS?'http://northstar-tile.localhost/':'northstar-tile://')+'cache/?u=';
 function tileCacheOn(){return !!(window.__TAURI_INTERNALS__||window.__TAURI__)}
 function tileUrl(url){return tileCacheOn()?TILE_SCHEME+encodeURIComponent(url):String(url)}
 function tileTemplate(url){if(!tileCacheOn())return String(url);return TILE_SCHEME+String(url).split(/(\{[a-zA-Z0-9_-]+\})/).map(part=>part.charAt(0)==='{'?part:encodeURIComponent(part)).join('')}

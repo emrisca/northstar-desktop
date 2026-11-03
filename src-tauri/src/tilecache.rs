@@ -400,6 +400,25 @@ mod tests {
     }
 
     #[test]
+    fn the_windows_form_of_the_scheme_names_the_same_url() {
+        // WebView2 asks http://northstar-tile.localhost/cache/?u= because Windows
+        // has no custom-scheme URLs; macOS asks northstar-tile://. The handler
+        // reads the query only, so both name the same tile.
+        let url = "https://tile.openstreetmap.org/12/654/1583.png";
+        let encoded: String = url
+            .bytes()
+            .map(|byte| match byte {
+                b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                    (byte as char).to_string()
+                }
+                _ => format!("%{byte:02X}"),
+            })
+            .collect();
+        let windows = format!("http://northstar-tile.localhost/cache/?u={encoded}");
+        assert_eq!(target(&windows).as_deref(), Ok(url));
+    }
+
+    #[test]
     fn the_mime_comes_from_the_extension_when_the_source_says_nothing() {
         assert_eq!(guess_mime("https://x/y.png?token=1"), "image/png");
         assert_eq!(guess_mime("https://x/y.pbf"), "application/x-protobuf");

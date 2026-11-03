@@ -1,5 +1,23 @@
 # Release notes
 
+## 0.1.15 — Windows finds its map tiles again
+
+The Windows build drew no basemap for every style that goes through the tile
+cache: street, satellite, topo, the Esri canvases and the USDA imagery. The
+vector styles (OpenFreeMap, OpenHistoricalMap) and the 3D globe were fine, which
+is why it looked like "certain maps".
+
+The cause is one line in `src/app.js`. Tauri serves a registered scheme as
+`northstar-tile://cache/?u=…` on macOS and Linux, but on Windows and Android the
+webview has no custom-scheme URLs at all and serves the same handler at
+`http://northstar-tile.localhost/cache/?u=…`. The page asked for the native form
+everywhere, so on Windows the request reached no handler and every cached tile
+died before it was drawn. `TILE_SCHEME` now picks the form from the platform, and
+the policy in `src-tauri/tauri.conf.json` names the Windows origin in `img-src`
+and `connect-src` beside `northstar-tile:`, which it had to be allowed to load
+the answers. The Rust handler already read the `?u=` query only, so the same
+decode, allowlist and cache serve both forms; a test now covers the Windows URL.
+
 ## 0.1.14 — past releases, and the map picks its renderer
 
 **Settings → Update** can go backwards. The update tab lists the releases
