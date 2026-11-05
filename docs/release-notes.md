@@ -1,5 +1,45 @@
 # Release notes
 
+## 0.1.16 — point tables import, and the map stops crying wolf
+
+Delimited tables import whatever their punctuation. `src/crsimport.js` reads a
+table once, in one function, for both the fast path and the column mapper, so the
+two can no longer disagree about what the file says: comma, semicolon, tab and
+pipe all parse, quoted fields stay whole — Northstar's own CSV export quotes
+every field — and a Markdown `| --- |` rule row is skipped instead of becoming a
+waypoint. A survey workspace written as a pipe table now imports its four points
+without opening the mapper at all.
+
+The mapper chooses better starting columns. Candidates are scored rather than
+taken by first name match: decimal degrees beat degrees-minutes-seconds, input
+beats output, change, sigma and unit columns are excluded outright, and the two
+axes have to come from the same family. A 46-column NGS converter export opens
+with `Input_Lon(DD)` and `Input_Lat(DD)` selected and the preview already
+converting, and columns like `Lat_Change(m)` no longer send a file down the
+silent fast path to zero points.
+
+The map error banner stopped crying wolf. It appeared whenever a single tile
+failed, and tiles fail routinely: a pan or a zoom aborts requests, and providers
+answer 404 or a blocked CORS request for the views they do not cover while the
+rest of the map draws normally. Every raster basemap now needs three consecutive
+failures with no tile arriving in between, and the first tile that loads takes
+the banner down and puts the status back to Ready. The 15-second fallback no
+longer raises it at all — slow is not broken, and a MapLibre-backed layer never
+emits Leaflet's `tileload`, so that timer used to fire over a map that had
+visibly loaded. The MapLibre path counts its own errors by the same rule, and
+source content clears it the same way.
+
+Waypoints are clickable on basemaps that draw through MapLibre. Those paint on
+their own canvas, so the pointer never reached Leaflet's click handler, and the
+markers are deliberately non-interactive — selection is a distance test inside
+`handleMapClick`. The map's own click now feeds that test, so a satellite or
+vector style selects the point under the pointer; the blank grid keeps using
+Leaflet's click.
+
+`npm run test:tables` covers the reader, the column choice and the dialog
+decision against both files that failed, and drives one real import in Chromium
+where that browser is installed.
+
 ## 0.1.15 — Windows finds its map tiles again
 
 The Windows build drew no basemap for every style that goes through the tile

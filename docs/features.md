@@ -72,8 +72,8 @@ Every behaviour in the web build, grouped by where the person meets it. The file
 
 ## 8. Import and export
 
-- Import of CSV, TXT, GeoJSON, GPX, KML and DXF points. `app.js`, `dxf.js`
-- Table import for files without latitude and longitude columns: pick easting and northing columns, an optional name column, and the CRS, with a preview of the first converted row. `crsimport.js`
+- Import of delimited tables (comma, semicolon, tab, pipe, with quoted fields) as CSV, TXT or a Markdown table, plus GeoJSON, GPX, KML and DXF points. `app.js`, `dxf.js`
+- Table import for files without plain latitude and longitude headers: pick the two coordinate columns, an optional name column, and the CRS, with a preview of the first converted row. The pair starts on decimal degrees ahead of degrees-minutes-seconds and on input ahead of output, so a converter export lands on its `Input_Lat(DD)` and `Input_Lon(DD)` columns rather than on State Plane metres. `crsimport.js`
 - Project export and import as `.northstar.json`, covering the object tree, basemaps, the historical year, saved jobs and accepted results. `app.js`, `postprocess.js`
 - Selected-point export as PDF report, DXF, KML, GPX, GeoJSON, CSV or LandXML, with a chooser for which waypoints to include. `app.js`, `dxf.js`
 - CSV export with UTM columns. `app.js`
