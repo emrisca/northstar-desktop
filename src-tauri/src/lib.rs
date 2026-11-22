@@ -597,9 +597,23 @@ async fn export_save(
     let path = picked
         .into_path()
         .map_err(|error| format!("that file cannot be written: {error}"))?;
+    let path = keep_export_extension(path, &name);
     std::fs::write(&path, contents.as_bytes())
         .map_err(|error| format!("{}: {error}", path.display()))?;
     Ok(Some(path.display().to_string()))
+}
+
+/// The panel drops the proposed extension when the name is typed over, so an
+/// export could reach CAD as `parcel` instead of `parcel.dxf`.
+fn keep_export_extension(path: std::path::PathBuf, name: &str) -> std::path::PathBuf {
+    if path.extension().is_some() {
+        return path;
+    }
+    let mut path = path;
+    if let Some(extension) = std::path::Path::new(&export_file_name(name)).extension() {
+        path.set_extension(extension);
+    }
+    path
 }
 
 /// The interface already replaces the characters a project name cannot carry.
@@ -774,6 +788,19 @@ mod tests {
     use tauri::ipc::{CallbackFn, InvokeBody};
     use tauri::test::{get_ipc_response, mock_builder, mock_context, noop_assets, MockRuntime};
     use tauri::webview::InvokeRequest;
+
+    #[test]
+    fn export_keeps_the_extension_a_typed_name_drops() {
+        let kept = |path: &str, name: &str| {
+            keep_export_extension(std::path::PathBuf::from(path), name)
+                .display()
+                .to_string()
+        };
+        assert_eq!(kept("/tmp/nscad-project", "project.dxf"), "/tmp/nscad-project.dxf");
+        assert_eq!(kept("/tmp/nscad-points.dxf", "project.dxf"), "/tmp/nscad-points.dxf");
+        assert_eq!(kept("/tmp/parcel.v2/name", "project.dxf"), "/tmp/parcel.v2/name.dxf");
+        assert_eq!(kept("/tmp/name", "northstar-export"), "/tmp/name");
+    }
 
     #[test]
     fn export_file_name_keeps_the_export_in_one_folder() {

@@ -17,6 +17,10 @@ Project…** and **Save a copy…** all stay live and cancel properly. Nothing e
 about them changed: the same saved path, cancel and failure results come back,
 and every export still goes through the shell.
 
+A name typed over the suggestion no longer loses its extension. Type
+`north parcel` into the panel and the file lands as `north parcel.dxf`, so it
+opens in CADCraft and the rest of the CAD tools that pick files by extension.
+
 ## 0.1.17 — whole projects into CAD, and exports that land
 
 A project now exports as one DXF drawing for CADCraft and any other CAD that reads
