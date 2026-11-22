@@ -1,5 +1,22 @@
 # Release notes
 
+## 0.1.18 — the save dialog stops freezing the window
+
+Choosing an export opened the native save panel and then left the whole window
+frozen, with **Save** greyed out and no way to cancel. Every dialog call ran on
+the thread that draws the window, because a Tauri command that is not `async`
+runs there, and the dialog plugin's blocking call holds that thread while the
+panel waits for an answer. On macOS the panel is a sheet, the sheet needs the
+same run loop, so the panel appeared and the app stopped responding underneath
+it.
+
+Dialogs now answer through a callback and the command waits for the answer off
+the main thread. `export_save`, `project_pick` and `project_save_as` are all
+`async` and share one small waiter, so the export panel, **File > Open
+Project…** and **Save a copy…** all stay live and cancel properly. Nothing else
+about them changed: the same saved path, cancel and failure results come back,
+and every export still goes through the shell.
+
 ## 0.1.17 — whole projects into CAD, and exports that land
 
 A project now exports as one DXF drawing for CADCraft and any other CAD that reads

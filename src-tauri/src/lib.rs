@@ -239,17 +239,40 @@ fn project_open_path(
     })
 }
 
+/// Waits for a native dialog's answer away from the main thread.
+///
+/// The dialog plugin's blocking calls must not run on the main thread: macOS
+/// presents the panel as a sheet, the sheet needs the run loop that the
+/// blocking call is holding, and what appears is a panel whose Save button
+/// never enables while the whole window stops responding. A command that is
+/// not `async` runs on that thread, so every dialog here answers through a
+/// callback and the command waits for the answer here instead.
+async fn dialog_answer(
+    answer: std::sync::mpsc::Receiver<Option<tauri_plugin_dialog::FilePath>>,
+) -> Result<Option<tauri_plugin_dialog::FilePath>, String> {
+    tauri::async_runtime::spawn_blocking(move || answer.recv())
+        .await
+        .map_err(|error| format!("the dialog did not answer: {error}"))?
+        .map_err(|error| format!("the dialog closed before it answered: {error}"))
+}
+
 #[tauri::command]
-fn project_pick(app: tauri::State<Files>, handle: tauri::AppHandle) -> Result<Option<Opened>, String> {
+async fn project_pick(
+    app: tauri::State<'_, Files>,
+    handle: tauri::AppHandle,
+) -> Result<Option<Opened>, String> {
     use tauri_plugin_dialog::DialogExt;
 
-    let picked = handle
+    let (answer, wait) = std::sync::mpsc::channel();
+    handle
         .dialog()
         .file()
         .add_filter("Northstar project", &["northstar", "json"])
         .set_title("Open a Northstar project")
-        .blocking_pick_file();
-    let Some(picked) = picked else {
+        .pick_file(move |picked| {
+            let _ = answer.send(picked);
+        });
+    let Some(picked) = dialog_answer(wait).await? else {
         return Ok(None);
     };
     let path = picked
@@ -272,8 +295,8 @@ fn project_save(app: tauri::State<Files>, document: Value) -> Result<Saved, Stri
 }
 
 #[tauri::command]
-fn project_save_as(
-    app: tauri::State<Files>,
+async fn project_save_as(
+    app: tauri::State<'_, Files>,
     handle: tauri::AppHandle,
     document: Value,
 ) -> Result<Option<Saved>, String> {
@@ -284,14 +307,17 @@ fn project_save_as(
         .and_then(Value::as_str)
         .unwrap_or("Survey workspace");
     let suggested = format!("{}.northstar", store::slug(name));
-    let picked = handle
+    let (answer, wait) = std::sync::mpsc::channel();
+    handle
         .dialog()
         .file()
         .add_filter("Northstar project", &["northstar", "json"])
         .set_title("Save a copy of this project")
         .set_file_name(&suggested)
-        .blocking_save_file();
-    let Some(picked) = picked else {
+        .save_file(move |picked| {
+            let _ = answer.send(picked);
+        });
+    let Some(picked) = dialog_answer(wait).await? else {
         return Ok(None);
     };
     let path = picked
@@ -550,20 +576,22 @@ async fn noaa_base(
 /// better answer for CAD interchange, because the drawing has to land somewhere
 /// the person can find and open.
 #[tauri::command]
-fn export_save(
+async fn export_save(
     app: tauri::AppHandle,
     name: String,
     contents: String,
 ) -> Result<Option<String>, String> {
     use tauri_plugin_dialog::DialogExt;
 
-    let picked = app
-        .dialog()
+    let (answer, wait) = std::sync::mpsc::channel();
+    app.dialog()
         .file()
         .set_title("Save export")
         .set_file_name(&export_file_name(&name))
-        .blocking_save_file();
-    let Some(picked) = picked else {
+        .save_file(move |picked| {
+            let _ = answer.send(picked);
+        });
+    let Some(picked) = dialog_answer(wait).await? else {
         return Ok(None);
     };
     let path = picked
