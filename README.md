@@ -26,7 +26,7 @@ Batch 7, release hardening. What works:
   report, and crash and frontend logs at a documented path.
 - Raster, terrain and overlay map tiles are cached on disk by the shell, so a
   basemap that has been viewed keeps drawing without a connection.
-- `npm test` runs the browser and Rust suites.
+- `npm test` runs the browser suites, the DXF suite and the Rust suite.
 - Linux `.deb` and AppImage packages are built by the release workflow, with a
   Linux RTKLIB bundle built on the runner.
 
@@ -61,8 +61,8 @@ parts, cut between two vertices, and drawn cut, plus the Line and Poly line tool
 DXF import and export, and the project units. For each partition method it accepts
 the partition, checks every preview area against the GeographicLib area of the
 accepted part, and then saves and checks the matching map tag. Chrome must be
-installed; the harness downloads no browser. `npm test` runs this suite and then
-the Rust suite.
+installed; the harness downloads no browser. `npm test` runs this suite, then the
+DXF suite and the Rust suite.
 
 ### Windows
 
@@ -145,6 +145,7 @@ public, so the app reads that file without a token.
 ```text
 src/               the interface: plain HTML, CSS and JavaScript, no bundler
   native.js        the bridge between the interface and the Rust shell
+  dxf.js           the DXF R12 writer that exports a whole project
   vendor/          the seven libraries, Cesium and the fonts, with versions and hashes recorded
 src-tauri/         the window, the Rust commands, and the Tauri configuration
 src-tauri/src/store.rs   the project and settings files

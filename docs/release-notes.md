@@ -1,5 +1,45 @@
 # Release notes
 
+## 0.1.17 — whole projects into CAD, and exports that land
+
+A project now exports as one DXF drawing for CADCraft and any other CAD that reads
+DXF. **Export > DXF (whole project)** writes R12 (`AC1009`) with a classic
+`POLYLINE`/`VERTEX`/`SEQEND` per line, so the geometry arrives as polylines the
+receiving app can edit instead of a loose pile of segments. Waypoints land on
+`NORTHSTAR-POINTS`, parcels and polylines on their own layers, and the table
+section declares every layer the drawing uses, so a CAD layer list is not empty on
+open.
+
+The drawing carries the measurements, not only the coordinates. Each parcel side
+gets a `LINE` on `NORTHSTAR-DISTANCES` with its length, a `TEXT` with the bearing in
+quadrant form such as `N 45°12'30" E`, and each interior angle as a `TEXT` at its
+vertex on `NORTHSTAR-ANGLES`. Saved measures come across as a `LINE` and its label,
+and each waypoint gets a point marker and a `TEXT` with its name and coordinates.
+Entities stay plain `LINE`, `ARC` and `TEXT` rather than `DIMENSION`: a
+`DIMENSION` needs a matching dimension style on the receiving side, and the flat
+entities show in every reader.
+
+Geometry is projected to the project's coordinate reference system before it is
+written, so a state-plane or UTM project exports in that system's metres rather
+than degrees. A project still in WGS 84 longitude and latitude is projected to its
+UTM zone for the drawing. With the ground factor on, the drawing is scaled about
+its first point, and the layer names, the unit note and every label follow the
+projected system's unit.
+
+Exports are now written by the shell. The page used to hand the file to the
+webview as a blob download, and on macOS that download went nowhere: the webview
+attaches its download delegate only when the app installs a handler, and this
+shell installs none, so the click produced no file and no error. `export_save` in
+`src-tauri/src/lib.rs` opens the native save dialog and writes the bytes itself,
+for DXF, GeoJSON, CSV, KML and the PDF report alike. The dialog opens in one
+folder, the chosen name is reduced to a bare file name before it is joined, and
+cancelling writes nothing. The status line then reports the saved path, the
+cancel, or the failure.
+
+`npm run test:dxf` builds a square project and checks the drawing's header, its
+layers, the entity counts, the projected coordinates and the distance, bearing and
+angle text.
+
 ## 0.1.16 — point tables import, and the map stops crying wolf
 
 Delimited tables import whatever their punctuation. `src/crsimport.js` reads a

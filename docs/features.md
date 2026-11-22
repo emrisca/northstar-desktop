@@ -76,6 +76,7 @@ Every behaviour in the web build, grouped by where the person meets it. The file
 - Table import for files without plain latitude and longitude headers: pick the two coordinate columns, an optional name column, and the CRS, with a preview of the first converted row. The pair starts on decimal degrees ahead of degrees-minutes-seconds and on input ahead of output, so a converter export lands on its `Input_Lat(DD)` and `Input_Lon(DD)` columns rather than on State Plane metres. `crsimport.js`
 - Project export and import as `.northstar.json`, covering the object tree, basemaps, the historical year, saved jobs and accepted results. `app.js`, `postprocess.js`
 - Selected-point export as PDF report, DXF, KML, GPX, GeoJSON, CSV or LandXML, with a chooser for which waypoints to include. `app.js`, `dxf.js`
+- Whole-project DXF for CAD, written as R12 with a layer table and separate layers for points, lines, parcels, side dimensions, bearings, interior angles, areas and a note block. It projects to the project CRS, applies the ground factor, and writes each side's distance and bearing, each vertex's interior angle and each parcel's area, so CADCraft opens the drawing with those values. `app.js`, `dxf.js`
 - CSV export with UTM columns. `app.js`
 
 ## 9. Search
@@ -161,7 +162,7 @@ The web build keeps all of this in `localStorage`. The desktop build keeps the p
 - About reports the version, platform, RTKLIB version, exact log paths and third-party notices. `src/native.js`, `src-tauri/src/lib.rs`
 - `northstar.log` records startup and frontend exceptions; `crash.log` records Rust panics with a backtrace. Help > Open Log Folder reveals the platform log directory. `src-tauri/src/logging.rs`
 - File > Print Selected-Points Report builds the report in the interface and opens the system print dialog. `src/app.js`
-- `npm test` runs the browser regression suite and the Rust suite; `npm run verify:package` checks the built artifact, association and RTKLIB resources. `package.json`, `scripts/verify-package.mjs`
+- `npm test` runs the browser regression, load budget, DXF and Rust suites; `npm run verify:package` checks the built artifact, association and RTKLIB resources. `package.json`, `scripts/verify-package.mjs`
 
 ## 18. Working offline
 

@@ -542,6 +542,50 @@ async fn noaa_base(
         .map_err(|error| error.to_string())?
 }
 
+/// Writes an export to the place the person picks.
+///
+/// A download from the webview does not work on macOS: wry only attaches its
+/// download delegate when a handler is installed, and the shell installs none,
+/// so the file was dropped without a word. The native save dialog is also the
+/// better answer for CAD interchange, because the drawing has to land somewhere
+/// the person can find and open.
+#[tauri::command]
+fn export_save(
+    app: tauri::AppHandle,
+    name: String,
+    contents: String,
+) -> Result<Option<String>, String> {
+    use tauri_plugin_dialog::DialogExt;
+
+    let picked = app
+        .dialog()
+        .file()
+        .set_title("Save export")
+        .set_file_name(&export_file_name(&name))
+        .blocking_save_file();
+    let Some(picked) = picked else {
+        return Ok(None);
+    };
+    let path = picked
+        .into_path()
+        .map_err(|error| format!("that file cannot be written: {error}"))?;
+    std::fs::write(&path, contents.as_bytes())
+        .map_err(|error| format!("{}: {error}", path.display()))?;
+    Ok(Some(path.display().to_string()))
+}
+
+/// The interface already replaces the characters a project name cannot carry.
+/// This keeps a separator from turning an export into a write somewhere else.
+fn export_file_name(name: &str) -> String {
+    let trimmed = name.trim();
+    let base = if trimmed.is_empty() {
+        "northstar-export"
+    } else {
+        trimmed
+    };
+    base.replace(['/', '\\', ':', '\0'], "-")
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let startup_path = std::env::args_os()
@@ -645,6 +689,7 @@ pub fn run() {
             project_reveal,
             project_folder,
             project_forget,
+            export_save,
             settings_save,
             update_state,
             update_check,
@@ -701,6 +746,13 @@ mod tests {
     use tauri::ipc::{CallbackFn, InvokeBody};
     use tauri::test::{get_ipc_response, mock_builder, mock_context, noop_assets, MockRuntime};
     use tauri::webview::InvokeRequest;
+
+    #[test]
+    fn export_file_name_keeps_the_export_in_one_folder() {
+        assert_eq!(export_file_name("NorthStar-Project.dxf"), "NorthStar-Project.dxf");
+        assert_eq!(export_file_name("../etc/passwd"), "..-etc-passwd");
+        assert_eq!(export_file_name("  "), "northstar-export");
+    }
 
     /// A window over a throwaway data folder, with the commands registered the
     /// way the real builder registers them. This is the seam a browser harness

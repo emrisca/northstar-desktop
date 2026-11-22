@@ -802,4 +802,16 @@
       return invoke('update_install');
     }
   };
+
+  /* Exports are written by the shell. A download from a blob: URL is dropped
+   * without a word on macOS, so the shell asks where to save and returns the
+   * path, or null when the dialog was cancelled. */
+  window.northstarNative = {
+    saveExport: function (name, contents) {
+      return invoke('export_save', {
+        name: String(name),
+        contents: String(contents)
+      });
+    }
+  };
 })();
